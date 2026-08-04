@@ -17,7 +17,7 @@
         "spatie/laravel-markdown": "^2.7",
         "spatie/laravel-package-tools": "^1.15",
         "spatie/laravel-sitemap": "^7.0 || ^8.0",
-        "spatie/laravel-sluggable": "^3.0"
+        "spatie/laravel-sluggable": "^3.0 || ^4.0"
     },
     "autoload": {
         "psr-4": {
