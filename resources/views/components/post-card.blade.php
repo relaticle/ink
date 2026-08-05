@@ -12,7 +12,7 @@
                 @endif
             </div>
 
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-200 mb-1">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-200 mb-1 break-words">
                 {{ $post->title }}
             </h2>
 

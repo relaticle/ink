@@ -21,6 +21,7 @@ use Livewire\LivewireServiceProvider;
 use Orchestra\Testbench\TestCase as BaseTestCase;
 use RalphJSmit\Laravel\SEO\LaravelSEOServiceProvider as RalphSEOServiceProvider;
 use Relaticle\Ink\InkServiceProvider;
+use Spatie\Sluggable\SluggableServiceProvider;
 
 class TestCase extends BaseTestCase
 {
@@ -40,6 +41,7 @@ class TestCase extends BaseTestCase
             WidgetsServiceProvider::class,
             LivewireServiceProvider::class,
             RalphSEOServiceProvider::class,
+            SluggableServiceProvider::class,
             InkServiceProvider::class,
         ];
     }

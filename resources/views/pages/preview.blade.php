@@ -8,7 +8,7 @@
     </div>
     <h1>{{ $post->title }}</h1>
     <div class="post-body">
-        {!! \Illuminate\Support\Str::markdown($post->content ?? '') !!}
+        {!! \Illuminate\Support\Str::markdown($post->content ?? '', ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}
     </div>
 </article>
 @endsection
