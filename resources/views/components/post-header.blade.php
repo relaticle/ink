@@ -5,7 +5,7 @@
         @endif
     </div>
 
-    <h1 class="text-3xl sm:text-4xl font-bold text-gray-950 dark:text-white leading-[1.15] tracking-tight mb-4">
+    <h1 class="text-3xl sm:text-4xl font-bold text-gray-950 dark:text-white leading-[1.15] tracking-tight mb-4 break-words">
         {{ $post->title }}
     </h1>
 
