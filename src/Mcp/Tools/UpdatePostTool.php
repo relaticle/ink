@@ -5,33 +5,40 @@ declare(strict_types=1);
 namespace Relaticle\Ink\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
-use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
 use Relaticle\Ink\Enums\PostStatus;
+use Relaticle\Ink\Mcp\BlogTool;
 use Relaticle\Ink\Models\Post;
 
 #[Description('Update an existing blog post by ID. Only provided fields are updated.')]
 #[IsIdempotent]
-class UpdatePostTool extends Tool
+class UpdatePostTool extends BlogTool
 {
-    public function handle(Request $request): Response|ResponseFactory
+    protected function ability(): string
     {
-        if (! $request->user()?->is_admin) {
-            return Response::error('Permission denied. Admin access required.');
-        }
+        return 'update';
+    }
 
-        if (! $request->user()->tokenCan('posts:update')) {
-            return Response::error('Token missing required ability: posts:update');
-        }
+    protected function tokenAbility(): string
+    {
+        return 'posts:update';
+    }
 
+    protected function model(): string
+    {
+        return Post::class;
+    }
+
+    protected function resolveRecord(Request $request): Model|Response|null
+    {
         $validated = $request->validate([
             'id' => ['required', 'integer'],
             'title' => ['nullable', 'string', 'max:255'],
@@ -48,12 +55,16 @@ class UpdatePostTool extends Tool
 
         $post = Post::find($validated['id']);
 
-        if (! $post) {
-            return Response::error('Post not found.');
-        }
+        return $post ?? Response::error('Post not found.');
+    }
+
+    protected function run(Request $request, ?Model $record): Response|ResponseFactory
+    {
+        /** @var Post $post */
+        $post = $record;
 
         $content = isset($validated['content'])
-            ? Str::markdown($validated['content'], ['html_input' => 'strip', 'allow_unsafe_links' => false])
+            ? $validated['content']
             : null;
 
         $data = array_filter([

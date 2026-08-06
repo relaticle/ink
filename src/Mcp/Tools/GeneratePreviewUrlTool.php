@@ -5,38 +5,46 @@ declare(strict_types=1);
 namespace Relaticle\Ink\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\URL;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
+use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
-use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
+use Relaticle\Ink\Mcp\BlogTool;
 use Relaticle\Ink\Models\Post;
 
 #[Description('Generate a temporary signed preview URL for a blog post. The URL expires in 1 hour and can be opened in a browser to visually verify the post rendering.')]
 #[IsReadOnly]
-class GeneratePreviewUrlTool extends Tool
+class GeneratePreviewUrlTool extends BlogTool
 {
-    public function handle(Request $request): Response
+    protected function ability(): string
     {
-        if (! $request->user()?->is_admin) {
-            return Response::error('Permission denied. Admin access required.');
-        }
+        return 'view';
+    }
 
-        if (! $request->user()->tokenCan('posts:read')) {
-            return Response::error('Token missing required ability: posts:read');
-        }
+    protected function tokenAbility(): string
+    {
+        return 'posts:read';
+    }
 
-        $post = Post::find($request->get('id'));
+    protected function model(): string
+    {
+        return Post::class;
+    }
 
-        if (! $post) {
-            return Response::error('Post not found.');
-        }
+    protected function resolveRecord(Request $request): Model|Response|null
+    {
+        return Post::find($request->get('id')) ?? Response::error('Post not found.');
+    }
 
-        $url = URL::temporarySignedRoute('blog.preview', now()->addHour(), ['post' => $post]);
-
-        return Response::text($url);
+    protected function run(Request $request, ?Model $record): Response|ResponseFactory
+    {
+        return Response::text(
+            URL::temporarySignedRoute('blog.preview', now()->addHour(), ['post' => $record])
+        );
     }
 
     /** @return array<string, Type> */
