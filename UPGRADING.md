@@ -71,11 +71,19 @@ calling `route('blog.feed')` or `Route::has('blog.feed')` directly with the feat
 `blog.tag` is unaffected by this change — its route still registers unconditionally and
 `tag()` still aborts at runtime when `features.tags` is off.
 
+`features.feed` is now read once, at route-registration time, instead of on every
+request. If you run `route:cache`, flipping the flag from `false` to `true` (or back)
+requires `php artisan route:clear` (or a re-run of `route:cache`) before the change takes
+effect — previously the runtime check picked it up immediately on the next request.
+
 ### `/blog/preview/{post}` rejects non-numeric ids at the router
 
-The preview route now has `->whereNumber('post')`. A non-numeric segment now 404s at
-routing instead of reaching route-model binding, which could otherwise throw a database
-error on a strict-typed `id` column.
+The preview route now constrains `{post}` to `[0-9]{1,18}` (up to 18 digits — the safe
+maximum for a signed 64-bit id) instead of `whereNumber()`'s unbounded `[0-9]+`. A
+non-numeric segment 404s at routing instead of reaching route-model binding, which could
+otherwise throw a database error on a strict-typed `id` column; the length bound closes
+the same hole for an arbitrarily long digit string, which could otherwise overflow a
+`bigint` column on Postgres.
 
 ## To 2.2 from 2.1
 

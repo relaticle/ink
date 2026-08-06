@@ -36,3 +36,15 @@ test('it strips the injected permalink symbol from the label', function () {
 
     expect(array_values($post->tableOfContents()))->toBe(['Plain heading']);
 });
+
+test('it accepts a non-default heading level', function () {
+    $post = Post::factory()->create(['content' => "### Subsection heading\n\nBody."]);
+
+    expect(array_values($post->tableOfContents('h3')))->toBe(['Subsection heading']);
+});
+
+test('it rejects a tag outside the h1-h6 allowlist', function () {
+    $post = Post::factory()->create(['content' => "## Heading\n\nBody."]);
+
+    $post->tableOfContents('h2|//p');
+})->throws(InvalidArgumentException::class);

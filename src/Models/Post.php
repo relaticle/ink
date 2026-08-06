@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use RalphJSmit\Laravel\SEO\Schema\ArticleSchema;
 use RalphJSmit\Laravel\SEO\Schema\BreadcrumbListSchema;
 use RalphJSmit\Laravel\SEO\Schema\FaqPageSchema;
@@ -185,6 +186,12 @@ class Post extends Model
      */
     public function tableOfContents(string $tag = 'h2'): array
     {
+        if (! preg_match('/^h[1-6]$/', $tag)) {
+            throw new InvalidArgumentException(
+                "Invalid heading tag [{$tag}] passed to Post::tableOfContents(). Allowed values are h1, h2, h3, h4, h5, h6.",
+            );
+        }
+
         $html = $this->toHtml();
 
         if (trim($html) === '') {

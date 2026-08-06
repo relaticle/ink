@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Relaticle\Ink\Ink;
 use Relaticle\Ink\InkServiceProvider;
+use Relaticle\Ink\Models\Category;
 use Relaticle\Ink\Models\Post;
 use Relaticle\Ink\Models\Tag;
 
@@ -51,11 +52,15 @@ test('it renders the host view for a post when configured', function () {
 
 test('the preview view receives related posts and a null edit url by default', function () {
     config()->set('ink.views.preview', 'tests::host-preview');
-    $post = Post::factory()->create(['title' => 'Draft one']);
+
+    $category = Category::factory()->create();
+    $post = Post::factory()->create(['title' => 'Draft one', 'category_id' => $category->id]);
+    Post::factory()->published()->create(['category_id' => $category->id]);
 
     $this->get(URL::temporarySignedRoute('blog.preview', now()->addHour(), ['post' => $post]))
         ->assertOk()
         ->assertSee('HOST PREVIEW: Draft one')
+        ->assertSee('related=1')
         ->assertSee('edit=none');
 });
 

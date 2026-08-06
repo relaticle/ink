@@ -18,11 +18,14 @@ Route::prefix($prefix)->middleware($middleware)->group(function (): void {
 
     Route::get('/category/{slug}', [BlogController::class, 'category'])->name('blog.category');
 
-    // whereNumber matters: {post} binds by id, so a non-numeric segment would otherwise
-    // reach the database and throw, 500ing a public route.
+    // The constraint matters: {post} binds by id, so a non-numeric segment would
+    // otherwise reach the database and throw, 500ing a public route. It's bounded to
+    // 18 digits (safe max for a signed 64-bit id) rather than whereNumber()'s unbounded
+    // [0-9]+, which would let an arbitrarily long digit string reach the query and
+    // overflow a bigint column on Postgres.
     Route::get('/preview/{post}', [BlogController::class, 'preview'])
         ->middleware('signed')
-        ->whereNumber('post')
+        ->where('post', '[0-9]{1,18}')
         ->name('blog.preview');
 
     if (config('ink.features.feed', false)) {

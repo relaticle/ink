@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
+use Relaticle\Ink\Ink;
 use Relaticle\Ink\InkServiceProvider;
 use Relaticle\Ink\Models\Category;
 use Relaticle\Ink\Models\Post;
@@ -16,6 +17,8 @@ beforeEach(function () {
     // Re-boot the package so routes register with the just-set config flag.
     $this->app->register(InkServiceProvider::class, force: true);
     $this->app->getProvider(InkServiceProvider::class)->packageBooted();
+
+    Ink::flushState();
 });
 
 test('public index route returns published posts when feature enabled', function () {
@@ -93,6 +96,24 @@ test('preview route 403s without signature', function () {
     $post = Post::factory()->draft()->create();
 
     $this->get(route('blog.preview', $post))->assertForbidden();
+});
+
+test('the shipped preview page renders the edit link from the host hook', function () {
+    Ink::resolvePreviewEditUrlUsing(fn (Post $post): string => "https://admin.test/posts/{$post->id}/edit");
+
+    $post = Post::factory()->draft()->create(['title' => 'Draft preview']);
+
+    $this->get(URL::temporarySignedRoute('blog.preview', now()->addHour(), ['post' => $post]))
+        ->assertOk()
+        ->assertSee("https://admin.test/posts/{$post->id}/edit", escape: false);
+});
+
+test('the shipped preview page renders no edit link when the host hook is unregistered', function () {
+    $post = Post::factory()->draft()->create(['title' => 'Draft preview']);
+
+    $this->get(URL::temporarySignedRoute('blog.preview', now()->addHour(), ['post' => $post]))
+        ->assertOk()
+        ->assertDontSee('Edit Post');
 });
 
 test('feed route returns RSS XML when feed feature enabled', function () {
