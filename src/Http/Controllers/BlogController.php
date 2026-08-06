@@ -128,8 +128,6 @@ class BlogController extends Controller
 
     public function feed(): Response
     {
-        abort_unless(config('ink.features.feed', false), 404);
-
         $posts = Post::query()
             ->with(['author', 'seo'])
             ->published()

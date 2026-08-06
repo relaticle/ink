@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Relaticle\Ink\InkServiceProvider;
@@ -97,6 +98,14 @@ test('preview route 403s without signature', function () {
 test('feed route returns RSS XML when feed feature enabled', function () {
     config()->set('ink.features.feed', true);
 
+    // Clear the routes booted by beforeEach() before re-registering: otherwise the
+    // catch-all `/{slug}` from that first (feed-disabled) boot stays first in line and
+    // intercepts `/feed` before the newly-added, correctly-gated feed route is reached.
+    app('router')->setRoutes(new RouteCollection);
+    $this->app->register(InkServiceProvider::class, force: true);
+    $this->app->getProvider(InkServiceProvider::class)->packageBooted();
+    Route::getRoutes()->refreshNameLookups();
+
     Post::factory()->published()->create(['title' => 'Hello feed']);
 
     $response = $this->get(route('blog.feed'));
@@ -107,8 +116,8 @@ test('feed route returns RSS XML when feed feature enabled', function () {
     expect($response->getContent())->toContain('Hello feed');
 });
 
-test('feed route 404s when feed feature disabled', function () {
+test('feed route does not exist when feed feature disabled', function () {
     config()->set('ink.features.feed', false);
 
-    $this->get(route('blog.feed'))->assertNotFound();
+    expect(Route::has('blog.feed'))->toBeFalse();
 });
