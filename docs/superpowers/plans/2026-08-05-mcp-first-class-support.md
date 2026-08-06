@@ -4,7 +4,7 @@
 
 **Goal:** Make `relaticle/ink` 2.x ship usable MCP support — a registerable server, authorization through the host's Gate, host-controlled author attribution, and consistent markdown storage.
 
-**Architecture:** A trait centralises the two authorization axes (host Gate for identity, Sanctum ability for credential) that are currently copy-pasted across 13 tools. A static manager class carries the one hook a host must supply (author resolution). A shipped `BlogServer` plus an opt-in route replace the server class every host writes by hand. The MCP tools stop transforming markdown to HTML, and a migration converts rows written under the old behaviour.
+**Architecture:** An abstract `BlogTool` owns a `final handle()` that authorizes before delegating to the subclass — the pattern Laravel uses for `FormRequest::validateResolved()` and Filament for `ListRecords::mount()`. It enforces two axes (host Gate for identity, Sanctum ability for credential) that are currently copy-pasted across 13 tools, and throws `AuthenticationException`/`AuthorizationException`, which laravel/mcp maps to tool errors by name. A static manager class carries the one hook a host must supply (author resolution). A shipped `BlogServer` plus an opt-in route replace the server class every host writes by hand. The MCP tools stop transforming markdown to HTML, and a migration converts rows written under the old behaviour.
 
 **Tech Stack:** PHP 8.4, Laravel 13, Filament 5, `laravel/mcp` ^0.9, Pest 5, Orchestra Testbench 11, `league/html-to-markdown` ^5.1.
 
@@ -24,7 +24,7 @@
 **Create:**
 - `src/Ink.php` — static manager holding the author-resolution hook
 - `src/Mcp/BlogServer.php` — the shippable server with all 13 tools
-- `src/Mcp/Concerns/AuthorizesBlogTools.php` — caller resolution, Gate check, token check, author resolution
+- `src/Mcp/BlogTool.php` — abstract base: final `handle()`, Gate + token authorization, author resolution
 - `routes/mcp.php` — the opt-in MCP route
 - `database/migrations/2026_08_05_000000_convert_html_post_content_to_markdown.php`
 - `tests/Feature/Mcp/AuthorizationTest.php`
@@ -38,7 +38,7 @@
 - `composer.json` — dependency upgrades, `suggest`, `league/html-to-markdown`
 - `config/ink.php` — `features.mcp`, `mcp.{path,guard,middleware}`
 - `src/InkServiceProvider.php` — conditional MCP route registration
-- All 13 files in `src/Mcp/Tools/` — use the trait, drop the duplicated preamble
+- All 13 files in `src/Mcp/Tools/` — extend `BlogTool`, drop the duplicated preamble
 - `src/Mcp/Tools/CreatePostTool.php`, `src/Mcp/Tools/UpdatePostTool.php` — stop calling `Str::markdown()`
 - `tests/TestCase.php` — register test policies
 - `README.md`, `UPGRADING.md`, `docs/content/2.essentials/3.mcp-tools.md`
@@ -360,18 +360,23 @@ git commit -m "feat: add mcp config keys and test-host blog policies"
 
 ---
 
-### Task 4: The authorization trait
+### Task 4: The `BlogTool` base class
 
 **Files:**
-- Create: `src/Mcp/Concerns/AuthorizesBlogTools.php`
+- Create: `src/Mcp/BlogTool.php`
 - Test: `tests/Feature/Mcp/AuthorizationTest.php`
 
 **Interfaces:**
 - Consumes: `Ink::resolveAuthor()` (Task 2); config keys and test policies (Task 3).
-- Produces, on the trait:
-  - `denyUnlessAuthorized(Request $request, string $ability, Model|string $target, string $tokenAbility): ?Response`
-  - `caller(Request $request): ?Authenticatable`
-  - `resolveAuthorOrFail(Request $request): Model|Response`
+- Produces, on `Relaticle\Ink\Mcp\BlogTool`:
+  - `final public function handle(Request $request): Response|ResponseFactory` — base-owned entry point
+  - `abstract protected function ability(): string`
+  - `abstract protected function tokenAbility(): string`
+  - `abstract protected function model(): string`
+  - `abstract protected function run(Request $request, ?Model $record): Response|ResponseFactory`
+  - `protected function resolveRecord(Request $request): ?Model` — defaults to `null`
+  - `protected function caller(Request $request): ?Authenticatable`
+  - `protected function resolveAuthorOrFail(Request $request): Model|Response`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -411,7 +416,7 @@ test('a caller the policy denies may not list posts', function () {
 
     BlogServer::actingAs(testUser())
         ->tool(ListPostsTool::class)
-        ->assertSee('Permission denied.');
+        ->assertSee('This action is unauthorized.');
 });
 
 test('a caller the policy denies may not create a post', function () {
@@ -420,68 +425,101 @@ test('a caller the policy denies may not create a post', function () {
 
     BlogServer::actingAs(testUser())
         ->tool(CreatePostTool::class, blogArgs($category))
-        ->assertSee('Permission denied.');
+        ->assertSee('This action is unauthorized.');
 });
 
 test('an unauthenticated caller is rejected', function () {
     BlogServer::tool(ListPostsTool::class)
-        ->assertSee('Authentication required.');
+        ->assertSee('Unauthenticated.');
 });
 ```
 
-Note: these tests exercise the Gate axis. The token-ability axis is covered in Task 6, once the tools consume the trait, because `testUser()` has no Sanctum token and `tokenCan()` returns true for a tokenless user.
+The expected strings are Laravel's own defaults — `Gate::authorize()` throws
+`AuthorizationException('This action is unauthorized.')` and `AuthenticationException` carries
+`'Unauthenticated.'`. `laravel/mcp` maps both to `Response::error($e->getMessage())` in
+`InteractsWithResponses::toErrorResponse()`, so no package-specific wording is invented.
+
+Note: these tests exercise the Gate axis. The token-ability axis is covered in Task 6, once the tools extend `BlogTool`, because `testUser()` has no Sanctum token and `tokenCan()` returns true for a tokenless user.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `vendor/bin/pest tests/Feature/Mcp/AuthorizationTest.php`
 Expected: FAIL — `Class "Relaticle\Ink\Mcp\BlogServer" not found`.
 
-- [ ] **Step 3: Write the trait**
+- [ ] **Step 3: Write the base class**
 
-Create `src/Mcp/Concerns/AuthorizesBlogTools.php`:
+Create `src/Mcp/BlogTool.php`. `handle()` is `final` so no subclass can ship without authorization —
+the same shape as `FormRequest::validateResolved()` and Filament's `ListRecords::mount()`:
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-namespace Relaticle\Ink\Mcp\Concerns;
+namespace Relaticle\Ink\Mcp;
 
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
+use Laravel\Mcp\ResponseFactory;
+use Laravel\Mcp\Server\Tool;
 use Relaticle\Ink\Ink;
 
-trait AuthorizesBlogTools
+abstract class BlogTool extends Tool
 {
     /**
-     * Two independent axes: the host's Gate decides whether this identity may
-     * manage the blog, the Sanctum ability decides whether this credential may.
-     * Returns null when the call is allowed.
+     * Resolve the record first so a tool's own not-found branch still fires before
+     * authorization — a denial must not double as an existence oracle.
      */
-    protected function denyUnlessAuthorized(
-        Request $request,
-        string $ability,
-        Model|string $target,
-        string $tokenAbility,
-    ): ?Response {
-        $caller = $this->caller($request);
+    final public function handle(Request $request): Response|ResponseFactory
+    {
+        $record = $this->resolveRecord($request);
 
-        if (! $caller instanceof Authenticatable) {
-            return Response::error('Authentication required.');
+        if ($record instanceof Response) {
+            return $record;
         }
 
-        if (! Gate::forUser($caller)->allows($ability, $target)) {
-            return Response::error('Permission denied.');
-        }
+        $this->authorizeAccess($request, $record);
 
-        if (method_exists($caller, 'tokenCan') && ! $caller->tokenCan($tokenAbility)) {
-            return Response::error("Token missing required ability: {$tokenAbility}");
-        }
+        return $this->run($request, $record);
+    }
 
+    abstract protected function ability(): string;
+
+    abstract protected function tokenAbility(): string;
+
+    /** @return class-string<Model> */
+    abstract protected function model(): string;
+
+    abstract protected function run(Request $request, ?Model $record): Response|ResponseFactory;
+
+    /** Class-target tools (list, create) keep the default. */
+    protected function resolveRecord(Request $request): Model|Response|null
+    {
         return null;
+    }
+
+    /**
+     * Two independent axes: the host's Gate decides whether this identity may manage
+     * the blog, the Sanctum ability decides whether this credential may. Both throw —
+     * laravel/mcp maps AuthenticationException and AuthorizationException to a tool
+     * error response by name in InteractsWithResponses::toErrorResponse().
+     *
+     * @throws AuthenticationException|AuthorizationException
+     */
+    protected function authorizeAccess(Request $request, ?Model $record): void
+    {
+        $caller = $this->caller($request) ?? throw new AuthenticationException;
+
+        Gate::forUser($caller)->authorize($this->ability(), $record ?? $this->model());
+
+        if (method_exists($caller, 'tokenCan') && ! $caller->tokenCan($this->tokenAbility())) {
+            throw new AuthorizationException("Token missing required ability: {$this->tokenAbility()}");
+        }
     }
 
     protected function caller(Request $request): ?Authenticatable
@@ -489,6 +527,11 @@ trait AuthorizesBlogTools
         return $request->user(config('ink.mcp.guard'));
     }
 
+    /**
+     * Returned rather than thrown: an unrecognised throwable is masked as "An internal
+     * server error occurred." outside debug, which would hide the one message an
+     * integrator needs to read.
+     */
     protected function resolveAuthorOrFail(Request $request): Model|Response
     {
         $author = Ink::resolveAuthor($this->caller($request));
@@ -558,25 +601,25 @@ If `Laravel\Mcp\Server\Attributes\Version` exists in the installed `laravel/mcp`
 - [ ] **Step 5: Run test — expect the Gate tests to still fail**
 
 Run: `vendor/bin/pest tests/Feature/Mcp/AuthorizationTest.php`
-Expected: the "allows" test passes; the "denies" tests FAIL, because the tools still use `is_admin` and have not adopted the trait. That is corrected in Task 5.
+Expected: the "allows" test passes; the "denies" tests FAIL, because the tools still use `is_admin` and still extend `Tool`. That is corrected in Task 5.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/Mcp/Concerns/AuthorizesBlogTools.php src/Mcp/BlogServer.php tests/Feature/Mcp/AuthorizationTest.php
-git commit -m "feat: add blog MCP server and authorization trait"
+git add src/Mcp/BlogTool.php src/Mcp/BlogServer.php tests/Feature/Mcp/AuthorizationTest.php
+git commit -m "feat: add blog MCP server and authorizing base tool"
 ```
 
 ---
 
-### Task 5: Convert all 13 tools to the trait
+### Task 5: Convert all 13 tools to extend `BlogTool`
 
 **Files:**
 - Modify: all 13 files in `src/Mcp/Tools/`
 - Test: `tests/Feature/Mcp/AuthorizationTest.php` (from Task 4)
 
 **Interfaces:**
-- Consumes: `AuthorizesBlogTools` (Task 4), `Ink::resolveAuthor()` (Task 2)
+- Consumes: `BlogTool` (Task 4), `Ink::resolveAuthor()` (Task 2)
 - Produces: every tool authorizes via Gate + token ability; `CreatePostTool` attributes via `resolveAuthorOrFail()`.
 
 Ability mapping — apply exactly:
@@ -599,49 +642,89 @@ Ability mapping — apply exactly:
 
 - [ ] **Step 1: Convert a class-target tool**
 
-In `src/Mcp/Tools/ListPostsTool.php`, add `use Relaticle\Ink\Mcp\Concerns\AuthorizesBlogTools;` to the imports and `use AuthorizesBlogTools;` as the first line of the class body. Replace the two-block `is_admin` / `tokenCan` preamble at the top of `handle()` with:
+In `src/Mcp/Tools/ListPostsTool.php`: change `extends Tool` to `extends BlogTool` (importing
+`Relaticle\Ink\Mcp\BlogTool` and dropping the `Laravel\Mcp\Server\Tool` import), delete the
+`is_admin` / `tokenCan` preamble, rename `handle(Request $request)` to
+`run(Request $request, ?Model $record)`, and add the three declarations:
 
 ```php
-        if ($denied = $this->denyUnlessAuthorized($request, 'viewAny', Post::class, 'posts:read')) {
-            return $denied;
-        }
+    protected function ability(): string
+    {
+        return 'viewAny';
+    }
+
+    protected function tokenAbility(): string
+    {
+        return 'posts:read';
+    }
+
+    protected function model(): string
+    {
+        return Post::class;
+    }
+
+    protected function run(Request $request, ?Model $record): Response|ResponseFactory
+    {
+        // ...the tool's existing body, minus the deleted preamble
+    }
 ```
 
 - [ ] **Step 2: Convert an instance-target tool**
 
-In `src/Mcp/Tools/DeletePostTool.php`, add the same import and `use AuthorizesBlogTools;`. Delete the `is_admin` / `tokenCan` preamble. Then move authorization to *after* the record lookup, so the existing "not found" error still fires first and a denial cannot leak existence:
+In `src/Mcp/Tools/DeletePostTool.php`, do the same, and move the lookup into `resolveRecord()` so the
+base class authorizes against the instance after the not-found branch:
 
 ```php
+    protected function ability(): string
+    {
+        return 'delete';
+    }
+
+    protected function tokenAbility(): string
+    {
+        return 'posts:delete';
+    }
+
+    protected function model(): string
+    {
+        return Post::class;
+    }
+
+    protected function resolveRecord(Request $request): Model|Response|null
+    {
         $validated = $request->validate([
             'id' => ['required', 'integer'],
         ], [
             'id.required' => 'You must provide the post ID to delete.',
         ]);
 
-        $post = Post::find($validated['id']);
+        return Post::find($validated['id']) ?? Response::error('Post not found.');
+    }
 
-        if (! $post) {
-            return Response::error('Post not found.');
-        }
+    protected function run(Request $request, ?Model $record): Response|ResponseFactory
+    {
+        $record->delete();
 
-        if ($denied = $this->denyUnlessAuthorized($request, 'delete', $post, 'posts:delete')) {
-            return $denied;
-        }
-
-        $post->delete();
+        return Response::structured([
+            'id' => $record->id,
+            'title' => $record->title,
+            'deleted' => true,
+            'message' => "Post '{$record->title}' has been soft deleted. Use restore-post to undo.",
+        ]);
+    }
 ```
 
 - [ ] **Step 3: Convert the remaining 11 tools**
 
 Every tool takes one of the two shapes already written above — there is no third case and no judgment call.
 
-Use the **Step 1 (class-target)** shape, authorizing before validation, for:
+Use the **Step 1 (class-target)** shape, leaving `resolveRecord()` at its default, for:
 `CreatePostTool`, `ListCategoriesTool`, `CreateCategoryTool`.
 
-Use the **Step 2 (instance-target)** shape, authorizing after the record is resolved and after its existing not-found branch, for:
+Use the **Step 2 (instance-target)** shape, moving the lookup into `resolveRecord()`, for:
 `GetPostTool`, `UpdatePostTool`, `RestorePostTool`, `GeneratePreviewUrlTool`, `GetCategoryTool`, `UpdateCategoryTool`, `DeleteCategoryTool`, `RestoreCategoryTool`.
 
-Take the ability and target for each from the mapping table above. `RestorePostTool` and `RestoreCategoryTool` resolve their record with `withTrashed()` — authorize after that lookup, not before.
+Take the ability and model for each from the mapping table above. `RestorePostTool` and `RestoreCategoryTool` must query with `withTrashed()` inside `resolveRecord()`, or they will report a soft-deleted record as not found.
 
 - [ ] **Step 4: Fix author attribution in `CreatePostTool`**
 
@@ -722,9 +805,9 @@ This requires `laravel/sanctum` and the `HasApiTokens` trait on the Testbench us
 Run: `vendor/bin/pest tests/Feature/Mcp/AuthorizationTest.php --filter="token without"`
 Expected: FAIL — the tool succeeds because no ability check bites.
 
-- [ ] **Step 3: Confirm the trait already implements it**
+- [ ] **Step 3: Confirm the base class already implements it**
 
-No production change should be needed: `denyUnlessAuthorized()` already calls `tokenCan()`. If the test still fails, the cause is the fixture user lacking `tokenCan`, not the trait. Fix the fixture.
+No production change should be needed: `BlogTool::authorizeAccess()` already calls `tokenCan()`. If the test still fails, the cause is the fixture user lacking `tokenCan`, not the base class. Fix the fixture.
 
 - [ ] **Step 4: Run to verify it passes**
 
@@ -754,7 +837,7 @@ test('a caller absent from the configured guard is rejected', function () {
     // Authenticated on the default guard only — the configured guard sees nobody.
     BlogServer::actingAs(testUser())
         ->tool(ListPostsTool::class)
-        ->assertSee('Authentication required.');
+        ->assertSee('Unauthenticated.');
 });
 ```
 
@@ -1127,7 +1210,7 @@ In `docs/content/2.essentials/3.mcp-tools.md`, replace the `## Registration` sec
 
 > Tools authorize through your application's Gate. Register a policy for
 > `Relaticle\Ink\Models\Post` and `Relaticle\Ink\Models\Category`; with no policy
-> registered the Gate denies and every tool returns `Permission denied.`
+> registered the Gate denies and every tool returns `This action is unauthorized.`
 >
 > Sanctum token abilities are checked separately, so a token can be scoped more
 > narrowly than the identity holding it.

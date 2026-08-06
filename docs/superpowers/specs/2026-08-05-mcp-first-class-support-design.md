@@ -126,25 +126,71 @@ hook — a host misconfiguration, not a caller mistake.
 Ships the class FilaForms hand-wrote: `#[Name('Blog')]`, `#[Version]`, `#[Instructions]`, and the 13
 tools in `$tools`.
 
-### `Relaticle\Ink\Mcp\Concerns\AuthorizesBlogTools`
+### `Relaticle\Ink\Mcp\BlogTool` — base class
 
-Replaces the duplicated preamble. Each tool opens with:
+Authorization is enforced by a base-owned entry point, not by each tool remembering to call a
+helper. This is the pattern both authoritative precedents use:
+
+- **Laravel `FormRequest`** — the framework owns `validateResolved()`, which calls
+  `passesAuthorization()` → `container->call([$this, 'authorize'])`. Subclasses only declare
+  `authorize()` and `rules()`.
+- **Filament** — `ListRecords::mount()` calls `$this->authorizeAccess()`; `CreateRecord`,
+  `EditRecord` and `ViewRecord` override only that hook.
+
+`laravel/mcp` uses the same idiom itself for `Primitive::shouldRegister()`
+(`method_exists` + `Container::call`).
 
 ```php
-// class target — before any work
-if ($denied = $this->denyUnlessAuthorized($request, 'create', Post::class, 'posts:create')) {
-    return $denied;
-}
+abstract class BlogTool extends Tool
+{
+    final public function handle(Request $request): Response|ResponseFactory
+    {
+        $record = $this->resolveRecord($request);   // ?Model — null for class-target tools
+        $this->authorizeAccess($request, $record);  // throws on failure
+        return $this->run($request, $record);
+    }
 
-// instance target — after the record is resolved
-if ($denied = $this->denyUnlessAuthorized($request, 'update', $post, 'posts:update')) {
-    return $denied;
+    abstract protected function ability(): string;
+    abstract protected function tokenAbility(): string;
+    abstract protected function model(): string;
+    abstract protected function run(Request $request, ?Model $record): Response|ResponseFactory;
+
+    protected function resolveRecord(Request $request): ?Model
+    {
+        return null;
+    }
 }
 ```
 
-The trait resolves the caller, runs the Gate, then the token ability, returning `null` on success or
-a `Response::error()` naming the specific failure. It also exposes `resolveAuthor()`, which only
-`CreatePostTool` uses — it is the sole tool that writes `author_id`.
+`handle()` is `final`, so a fourteenth tool cannot ship without authorization — the property is
+structural rather than a convention in prose. It also fixes the resolve-then-authorize ordering in
+one place instead of leaving eight tools to get it right by hand.
+
+A trait exposing `denyUnlessAuthorized()` was considered and rejected: it shortens the duplicated
+preamble but leaves 13 call sites that must each remember to call it, which is the same failure mode
+that let `is_admin` drift in the first place.
+
+### Failure signalling: throw, don't return
+
+`laravel/mcp` handles `AuthenticationException` and `AuthorizationException` **by name** in
+`InteractsWithResponses::toErrorResponse()`, converting each to `Response::error($e->getMessage())`.
+Tools therefore throw, exactly as `FormRequest::failedAuthorization()` does, and `Gate::authorize()`
+throws natively — so the happy path carries no error plumbing at all:
+
+```php
+protected function authorizeAccess(Request $request, ?Model $record): void
+{
+    $caller = $request->user(config('ink.mcp.guard')) ?? throw new AuthenticationException;
+
+    Gate::forUser($caller)->authorize($this->ability(), $record ?? $this->model());
+
+    if (method_exists($caller, 'tokenCan') && ! $caller->tokenCan($this->tokenAbility())) {
+        throw new AuthorizationException("Token missing required ability: {$this->tokenAbility()}");
+    }
+}
+```
+
+`Ink::resolveAuthor()` is used only by `CreatePostTool` — the sole tool that writes `author_id`.
 
 ### Route registration
 
@@ -211,15 +257,22 @@ this work.
 
 ## Error handling
 
-`Response::error()` with distinct, actionable messages so an agent can self-correct:
+Thrown exceptions, which `laravel/mcp` converts to `Response::error()`. Laravel's default messages
+are used where they exist rather than inventing package-specific wording:
 
-| Condition | Message |
-|---|---|
-| No authenticated caller | `Authentication required.` |
-| Gate denies | `Permission denied.` |
-| Token ability missing | `Token missing required ability: {ability}` |
-| Author unresolved | `No author could be resolved for this caller. Configure Ink::resolveAuthorUsing().` |
-| Record not found | unchanged per tool |
+| Condition | Thrown | Message the agent sees |
+|---|---|---|
+| No authenticated caller | `AuthenticationException` | `Unauthenticated.` |
+| Gate denies | `AuthorizationException` (from `Gate::authorize`) | `This action is unauthorized.` |
+| Token ability missing | `AuthorizationException` | `Token missing required ability: {ability}` |
+| Author unresolved | — returns `Response::error()` | `No author could be resolved for this caller. Configure Ink::resolveAuthorUsing().` |
+| Record not found | — returns `Response::error()` | unchanged per tool |
+
+Only the two the framework maps are thrown. The other two return a `Response::error()` deliberately:
+`toErrorMessage()` reports and masks any *unrecognised* throwable as `An internal server error
+occurred.` unless `app.debug` is on, so throwing for author-unresolved would hide the one message an
+integrator needs to read. Record-not-found stays a return because it is a normal outcome an agent
+should handle, not an exceptional one.
 
 ## Testing
 
