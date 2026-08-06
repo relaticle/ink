@@ -16,11 +16,18 @@ use Filament\Support\SupportServiceProvider;
 use Filament\Tables\TablesServiceProvider;
 use Filament\Widgets\WidgetsServiceProvider;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Auth\User;
+use Illuminate\Support\Facades\Gate;
+use Laravel\Mcp\Server\McpServiceProvider;
+use Laravel\Sanctum\SanctumServiceProvider;
 use Livewire\LivewireServiceProvider;
 use Orchestra\Testbench\TestCase as BaseTestCase;
 use RalphJSmit\Laravel\SEO\LaravelSEOServiceProvider as RalphSEOServiceProvider;
 use Relaticle\Ink\InkServiceProvider;
+use Relaticle\Ink\Models\Category;
+use Relaticle\Ink\Models\Post;
+use Relaticle\Ink\Tests\Fixtures\Models\TokenUser;
+use Relaticle\Ink\Tests\Fixtures\Policies\CategoryPolicy;
+use Relaticle\Ink\Tests\Fixtures\Policies\PostPolicy;
 use Spatie\Sluggable\SluggableServiceProvider;
 
 class TestCase extends BaseTestCase
@@ -40,6 +47,8 @@ class TestCase extends BaseTestCase
             TablesServiceProvider::class,
             WidgetsServiceProvider::class,
             LivewireServiceProvider::class,
+            McpServiceProvider::class,
+            SanctumServiceProvider::class,
             RalphSEOServiceProvider::class,
             SluggableServiceProvider::class,
             InkServiceProvider::class,
@@ -58,9 +67,15 @@ class TestCase extends BaseTestCase
 
         $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
 
-        $app['config']->set('ink.author_model', User::class);
+        $app['config']->set('ink.author_model', TokenUser::class);
 
         $app['view']->addNamespace('tests', __DIR__.'/Fixtures/views');
+
+        PostPolicy::$allow = true;
+        CategoryPolicy::$allow = true;
+
+        Gate::policy(Post::class, PostPolicy::class);
+        Gate::policy(Category::class, CategoryPolicy::class);
     }
 
     protected function defineDatabaseMigrations(): void
@@ -68,10 +83,15 @@ class TestCase extends BaseTestCase
         $schema = $this->app['db']->connection()->getSchemaBuilder();
 
         // Stub host tables the package's migrations and trait dependencies expect.
+        // Mirrors the columns Testbench's UserFactory writes; it gained
+        // email_verified_at/password/remember_token in Testbench 11.
         $schema->create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password')->nullable();
+            $table->rememberToken();
             $table->timestamps();
         });
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Relaticle\Ink;
 
 use Illuminate\Support\Facades\Blade;
+use Laravel\Mcp\Facades\Mcp as McpFacade;
 use Livewire\Livewire;
 use RalphJSmit\Laravel\SEO\Facades\SEOManager;
 use RalphJSmit\Laravel\SEO\Schema\CustomSchema;
@@ -45,6 +46,12 @@ class InkServiceProvider extends PackageServiceProvider
 
         if (config('ink.features.public_routes')) {
             $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
+        }
+
+        // laravel/mcp is a suggestion, not a requirement: a host that enables the flag
+        // without installing it gets no route rather than a fatal error.
+        if (config('ink.features.mcp') && class_exists(McpFacade::class)) {
+            $this->loadRoutesFrom(__DIR__.'/../routes/mcp.php');
         }
 
         $this->registerHowToSchemaTransformer();

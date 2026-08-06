@@ -5,28 +5,37 @@ declare(strict_types=1);
 namespace Relaticle\Ink\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\Types\Type;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
-use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
+use Relaticle\Ink\Mcp\BlogTool;
 use Relaticle\Ink\Models\Category;
 
 #[Description('List all blog categories with their post counts.')]
 #[IsReadOnly]
-class ListCategoriesTool extends Tool
+class ListCategoriesTool extends BlogTool
 {
-    public function handle(Request $request): Response|ResponseFactory
+    protected function ability(): string
     {
-        if (! $request->user()?->is_admin) {
-            return Response::error('Permission denied. Admin access required.');
-        }
+        return 'viewAny';
+    }
 
-        if (! $request->user()->tokenCan('categories:read')) {
-            return Response::error('Token missing required ability: categories:read');
-        }
+    protected function tokenAbility(): string
+    {
+        return 'categories:read';
+    }
+
+    protected function model(): string
+    {
+        return Category::class;
+    }
+
+    protected function run(Request $request, ?Model $record): Response|ResponseFactory
+    {
 
         $perPage = min((int) ($request->get('per_page') ?? 20), 50);
         $page = max((int) ($request->get('page') ?? 1), 1);
