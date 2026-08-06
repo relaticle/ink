@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Relaticle\Ink\Models;
 
+use DOMDocument;
+use DOMElement;
+use DOMXPath;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -168,6 +171,83 @@ class Post extends Model
             "post-rendered:{$this->id}",
             fn (): string => app(MarkdownRenderer::class)->toHtml($this->content),
         );
+    }
+
+    /**
+     * Build a fragment => heading-text map from the rendered post.
+     *
+     * DOM-parsed rather than regex: heading text is taken from textContent so inline
+     * markup (bold, code, links) survives, and entities decode exactly once. The
+     * fragment comes from the injected permalink anchor — the heading's own id is
+     * slugified from its inner HTML and unusable as a target.
+     *
+     * @return array<string, string>
+     */
+    public function tableOfContents(string $tag = 'h2'): array
+    {
+        $html = $this->toHtml();
+
+        if (trim($html) === '') {
+            return [];
+        }
+
+        $document = new DOMDocument;
+
+        $previous = libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8"?><div>'.$html.'</div>', LIBXML_NOWARNING | LIBXML_NOERROR);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        $toc = [];
+
+        foreach (new DOMXPath($document)->query('//'.$tag) ?: [] as $heading) {
+            if (! $heading instanceof DOMElement) {
+                continue;
+            }
+
+            $fragment = $this->headingFragment($heading);
+            $text = $this->headingText($heading);
+
+            if ($fragment === null || $text === '') {
+                continue;
+            }
+
+            $toc[$fragment] = $text;
+        }
+
+        return $toc;
+    }
+
+    private function headingFragment(DOMElement $heading): ?string
+    {
+        foreach ($heading->getElementsByTagName('a') as $anchor) {
+            $id = $anchor->getAttribute('id');
+
+            if ($id !== '') {
+                return $id;
+            }
+        }
+
+        $ownId = $heading->getAttribute('id');
+
+        return $ownId === '' ? null : $ownId;
+    }
+
+    private function headingText(DOMElement $heading): string
+    {
+        $clone = $heading->cloneNode(true);
+
+        if (! $clone instanceof DOMElement) {
+            return '';
+        }
+
+        foreach (iterator_to_array($clone->getElementsByTagName('a')) as $anchor) {
+            if ($anchor->getAttribute('id') !== '') {
+                $anchor->parentNode?->removeChild($anchor);
+            }
+        }
+
+        return trim(preg_replace('/\s+/u', ' ', $clone->textContent) ?? '');
     }
 
     public function readingTime(int $wordsPerMinute = 200): int
