@@ -116,6 +116,14 @@ test('the shipped preview page renders no edit link when the host hook is unregi
         ->assertDontSee('Edit Post');
 });
 
+test('the shipped preview page always renders noindex, even under a layout without @stack(head)', function () {
+    $post = Post::factory()->draft()->create(['title' => 'Draft preview']);
+
+    $this->get(URL::temporarySignedRoute('blog.preview', now()->addHour(), ['post' => $post]))
+        ->assertOk()
+        ->assertSee('noindex', escape: false);
+});
+
 test('feed route returns RSS XML when feed feature enabled', function () {
     config()->set('ink.features.feed', true);
 
