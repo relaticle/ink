@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Relaticle\Ink\Ink;
@@ -70,12 +72,43 @@ test('a host hook supplies the preview edit url', function () {
 
 test('show and preview do not lazy-load tags', function () {
     config()->set('ink.views.show', 'tests::host-show');
-    Model::preventLazyLoading();
+    config()->set('ink.views.preview', 'tests::host-preview');
 
     $post = Post::factory()->published()->create(['slug' => 'no-lazy']);
     $post->tags()->attach(Tag::factory()->create());
 
-    $this->get(route('blog.show', 'no-lazy'))->assertOk();
+    /**
+     * A single post fetched by slug/id is a single-row hydration, and Eloquent's
+     * `Model::preventLazyLoading()` guard only arms on multi-row hydration (see
+     * `Builder::hydrate()`), so it cannot catch a missing eager-load here. What
+     * *is* observable from outside the request is the query shape: eager-loading
+     * a BelongsToMany always issues a `whereIn` constraint (`addEagerConstraints`),
+     * while an on-demand relation access issues a plain `=` constraint
+     * (`addWhereConstraints`) — so we assert on that instead of relying on the
+     * (non-arming) lazy-loading guard.
+     */
+    $tagsQueries = collect();
 
-    Model::preventLazyLoading(false);
+    DB::listen(function (QueryExecuted $query) use ($tagsQueries): void {
+        if (str_contains($query->sql, 'from "blog_tags"')) {
+            $tagsQueries->push($query->sql);
+        }
+    });
+
+    Model::preventLazyLoading();
+
+    try {
+        $this->get(route('blog.show', 'no-lazy'))->assertOk();
+
+        $this->get(URL::temporarySignedRoute('blog.preview', now()->addHour(), ['post' => $post]))
+            ->assertOk();
+    } finally {
+        Model::preventLazyLoading(false);
+    }
+
+    expect($tagsQueries)->toHaveCount(2, 'expected one batched tags query for show() and one for preview()');
+
+    foreach ($tagsQueries as $sql) {
+        expect($sql)->toContain('in (');
+    }
 });
