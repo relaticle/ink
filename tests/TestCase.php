@@ -17,6 +17,7 @@ use Filament\Tables\TablesServiceProvider;
 use Filament\Widgets\WidgetsServiceProvider;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Gate;
+use Laravel\Mcp\Server\McpServiceProvider;
 use Laravel\Sanctum\SanctumServiceProvider;
 use Livewire\LivewireServiceProvider;
 use Orchestra\Testbench\TestCase as BaseTestCase;
@@ -46,6 +47,7 @@ class TestCase extends BaseTestCase
             TablesServiceProvider::class,
             WidgetsServiceProvider::class,
             LivewireServiceProvider::class,
+            McpServiceProvider::class,
             SanctumServiceProvider::class,
             RalphSEOServiceProvider::class,
             SluggableServiceProvider::class,
