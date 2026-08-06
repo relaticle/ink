@@ -56,7 +56,7 @@ HOST INDEX: {{ $posts->total() }} posts
 Create `tests/Fixtures/views/host-show.blade.php`:
 
 ```blade
-HOST SHOW: {{ $post->title }} / related={{ $relatedPosts->count() }} / tags={{ $post->tags->count() }}
+HOST SHOW: {{ $post->title }} / related={{ $relatedPosts->count() }}
 ```
 
 Create `tests/Feature/HostViewsTest.php`:
@@ -157,7 +157,7 @@ Then replace each hardcoded view name:
 - [ ] **Step 5: Run test to verify it passes**
 
 Run: `vendor/bin/pest tests/Feature/HostViewsTest.php`
-Expected: 3 passed. The show test still fails on `$post->tags` — that is Task 2.
+Expected: 3 passed.
 
 - [ ] **Step 6: Commit**
 
@@ -189,6 +189,12 @@ Create `tests/Fixtures/views/host-preview.blade.php`:
 
 ```blade
 HOST PREVIEW: {{ $post->title }} / related={{ $relatedPosts->count() }} / edit={{ $editUrl ?? 'none' }}
+```
+
+Extend `tests/Fixtures/views/host-show.blade.php` to exercise the eager-loaded tags:
+
+```blade
+HOST SHOW: {{ $post->title }} / related={{ $relatedPosts->count() }} / tags={{ $post->tags->count() }}
 ```
 
 Append to `tests/Feature/HostViewsTest.php`:
