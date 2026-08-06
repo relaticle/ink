@@ -8,6 +8,21 @@ return [
 
     'layout' => 'layouts.app',
 
+    /*
+     * Render your own views instead of the package's. Each null falls back to
+     * the matching `ink::pages.*` view.
+     */
+    'views' => [
+        'index' => null,
+        'show' => null,
+        'category' => null,
+        'tag' => null,
+        'preview' => null,
+        'feed' => null,
+    ],
+
+    'middleware' => ['web'],
+
     'author_model' => User::class,
 
     'per_page' => 12,

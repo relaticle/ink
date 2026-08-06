@@ -19,6 +19,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Gate;
 use Laravel\Mcp\Server\McpServiceProvider;
 use Laravel\Sanctum\SanctumServiceProvider;
+use League\CommonMark\Extension\HeadingPermalink\HeadingPermalinkExtension;
 use Livewire\LivewireServiceProvider;
 use Orchestra\Testbench\TestCase as BaseTestCase;
 use RalphJSmit\Laravel\SEO\LaravelSEOServiceProvider as RalphSEOServiceProvider;
@@ -28,6 +29,7 @@ use Relaticle\Ink\Models\Post;
 use Relaticle\Ink\Tests\Fixtures\Models\TokenUser;
 use Relaticle\Ink\Tests\Fixtures\Policies\CategoryPolicy;
 use Relaticle\Ink\Tests\Fixtures\Policies\PostPolicy;
+use Spatie\LaravelMarkdown\MarkdownServiceProvider;
 use Spatie\Sluggable\SluggableServiceProvider;
 
 class TestCase extends BaseTestCase
@@ -51,6 +53,7 @@ class TestCase extends BaseTestCase
             SanctumServiceProvider::class,
             RalphSEOServiceProvider::class,
             SluggableServiceProvider::class,
+            MarkdownServiceProvider::class,
             InkServiceProvider::class,
         ];
     }
@@ -68,6 +71,22 @@ class TestCase extends BaseTestCase
         $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
 
         $app['config']->set('ink.author_model', TokenUser::class);
+
+        // Post::tableOfContents() depends on the heading permalink anchors this
+        // extension injects — mirror the host's markdown config so the anchor's
+        // id (not the heading's own, HTML-slugified id) is exercised in tests.
+        $app['config']->set('markdown.extensions', [HeadingPermalinkExtension::class]);
+        $app['config']->set('markdown.commonmark_options.heading_permalink', [
+            'html_class' => 'heading-permalink',
+            'id_prefix' => '',
+            'fragment_prefix' => '',
+            'insert' => 'before',
+            'min_heading_level' => 1,
+            'max_heading_level' => 6,
+            'title' => 'Permalink',
+            'symbol' => '#',
+            'aria_hidden' => false,
+        ]);
 
         $app['view']->addNamespace('tests', __DIR__.'/Fixtures/views');
 

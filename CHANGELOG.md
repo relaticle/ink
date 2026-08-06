@@ -2,7 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.1.0] - Unreleased
+## [2.3.0] - 2026-08-06
+
+### Added
+- Host-owned views: an `ink.views` config map lets a host point any of the six public-routes actions (`index`, `show`, `category`, `tag`, `preview`, `feed`) at a view it already owns, instead of rendering ink's own `ink::pages.*` views. Every key defaults to `null` and is purely additive — see [Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views).
+- `ink.middleware` config key for the blog route group, defaulting to `['web']`. Add your own middleware (e.g. a response transformer for AI crawlers) alongside it.
+- `preview()` now passes `relatedPosts` and `editUrl` to the view. Register `Ink::resolvePreviewEditUrlUsing()` in a service provider's `boot()` to supply the edit link; ink's own preview page now renders it via `<x-ink::preview-banner>`, matching the contract host-owned preview views already had.
+- `Post::tableOfContents(string $tag = 'h2')` builds a `fragment => heading text` map from the rendered post, for hosts building an in-page table of contents. Restricted to `h1`-`h6`; any other value throws `InvalidArgumentException`.
+- `show()` and `preview()` now eager-load `tags` on the post, so `$post->tags` no longer triggers a lazy-load query in either view.
+
+### Changed
+- `/blog/preview/{post}` now constrains `{post}` to `[0-9]{1,18}` (the safe maximum for a signed 64-bit id) instead of the unbounded `whereNumber()`, closing a public unauthenticated 500 that an over-long digit segment could trigger via a `bigint` overflow on Postgres.
+- `blog.feed` is now registered only when `features.feed` is `true`, instead of always being registered behind a runtime `abort_unless()` check.
+
+See [UPGRADING.md](UPGRADING.md) for the full migration notes, including the `route:cache` implication of the `blog.feed` change.
+
+## [2.2.0] - 2026-08-06
+
+### Added
+- First-class MCP support: a shippable `BlogServer`, tool authorization through the host's `Gate` instead of a hardcoded `is_admin` check, and an `Ink::resolveAuthorUsing()` hook for hosts whose staff aren't `ink.author_model` instances.
+
+### Changed
+- MCP tools now store markdown instead of pre-rendering to HTML, matching what the Filament editor already stored. The included migration converts existing HTML rows.
+
+### Fixed
+- Long unbreakable tokens (URLs, code identifiers) in a post title no longer overflow the post page layout.
+- JSON-LD structured data now escapes `</script>`, `&`, `'` and `"`, closing an injection hole where a post title or excerpt containing `</script>` broke out of the schema block and rendered as visible page text.
+- The default `show` and `preview` views now strip raw HTML from post content before rendering markdown, closing a stored-XSS hole where a `<script>` in a post body executed on the public page.
+
+## [2.1.1] - 2026-08-04
+
+### Changed
+- Widened the `spatie/laravel-sluggable` constraint to allow `^4`.
+
+## [2.1.0] - 2026-05-14
 
 ### Added
 - `Relaticle\Ink\Support\BlogListingSeo` helper for building per-page `SEOData` for listings. Headless consumers can call `BlogListingSeo::forIndex/forCategory/forTag` from their own controllers.
@@ -21,7 +54,7 @@ All notable changes to this project will be documented in this file.
 - Listing routes (`/blog`, `/blog/category/{slug}`, `/blog/tag/{slug}`) now emit per-page canonical URLs and page-aware titles. Previously every paginated page canonicalized to page 1, causing Google to treat pages 2+ as duplicate content.
 - Shipped `show` and `preview` routes now call `seo()->for($post)` so post-attached SEO (BlogPosting + BreadcrumbList + FAQPage JSON-LD) actually renders in public-routes mode. Previously the schema only worked for consumers who overrode the controller.
 
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-05-14
 
 ### Changed (BREAKING)
 - **Package renamed** from `manukminasyan/filament-blog` to `relaticle/ink`
