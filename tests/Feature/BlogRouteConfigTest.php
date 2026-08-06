@@ -19,11 +19,20 @@ function bootBlogRoutes(array $config = []): void
     Route::getRoutes()->refreshNameLookups();
 }
 
-test('a non-numeric preview segment does not reach route model binding', function () {
+test('the preview route constrains the post segment to digits and rejects non-numeric segments', function () {
     bootBlogRoutes();
 
-    // Without whereNumber this casts to bigint and throws a QueryException — a 500
-    // on a public, unauthenticated route.
+    // The route-model-binding 404 below is engine-dependent: SQLite's loose type
+    // affinity makes `WHERE id = 'not-a-post-id'` against a bigint column return zero
+    // rows (ModelNotFoundException) whether or not the constraint is present, whereas
+    // Postgres would throw a QueryException without it. Assert on the compiled route's
+    // constraint directly so this test actually fails if whereNumber is removed.
+    $route = Route::getRoutes()->getByName('blog.preview');
+
+    expect($route->wheres)->toHaveKey('post')
+        ->and($route->wheres['post'])->toBe('[0-9]+');
+
+    // Also lock the user-visible contract: a non-numeric segment 404s, not 500s.
     $this->get('/blog/preview/not-a-post-id')->assertNotFound();
 });
 

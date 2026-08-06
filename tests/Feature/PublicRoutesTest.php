@@ -120,4 +120,6 @@ test('feed route does not exist when feed feature disabled', function () {
     config()->set('ink.features.feed', false);
 
     expect(Route::has('blog.feed'))->toBeFalse();
+
+    $this->get('/blog/feed')->assertNotFound();
 });
