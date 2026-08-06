@@ -1,8 +1,54 @@
-# Upgrading from `manukminasyan/filament-blog` to `relaticle/ink`
+# Upgrading
+
+## To 2.2 from 2.1
+
+### MCP tools authorize through your Gate
+
+The tools previously required `$user->is_admin`, which only worked where staff were rows in
+your `users` table. They now call `Gate::forUser($caller)->authorize(...)`.
+
+**Register a policy** for `Relaticle\Ink\Models\Post` and `Relaticle\Ink\Models\Category`.
+With none registered the Gate denies and every tool returns `This action is unauthorized.`
+If you relied on `is_admin`, a policy returning `$user->is_admin` reproduces the old
+behaviour exactly.
+
+Sanctum token abilities are unchanged and still checked, as a separate axis.
+
+### MCP tools store markdown, not HTML
+
+`CreatePostTool` and `UpdatePostTool` used to run `Str::markdown()` and store the rendered
+HTML, while the Filament editor stored raw markdown. They now store what they are given, so
+`content` means one thing regardless of write path.
+
+The included `convert_html_post_content_to_markdown` migration converts existing HTML rows.
+It prints the ids of any row it could not convert cleanly — review those by hand rather
+than assuming the migration handled everything.
+
+### Author attribution is host-controlled
+
+`CreatePostTool` no longer assumes the caller is the author. It uses the caller when that is
+already an `ink.author_model` instance; otherwise register a mapping in a service provider:
+
+```php
+Ink::resolveAuthorUsing(fn ($caller) => User::firstWhere('email', $caller->email));
+```
+
+### Custom tools extend BlogTool
+
+Tools of your own should extend `Relaticle\Ink\Mcp\BlogTool`, not
+`Laravel\Mcp\Server\Tool`, so they inherit authorization. Declare `ability()`,
+`tokenAbility()`, `model()` and `run()`.
+
+### Dropped support
+
+Laravel 12, `spatie/laravel-sitemap` 7, `spatie/laravel-sluggable` 3, Pest 3/4 and
+Testbench 10 are no longer supported. `laravel/mcp` moves to `^0.9`.
+
+## To 2.0 from 1.x — package rename
 
 This package was renamed from `manukminasyan/filament-blog` to `relaticle/ink` at version `2.0.0`.
 
-## What changed
+### What changed
 
 | Before | After |
 |---|---|
@@ -19,14 +65,14 @@ This package was renamed from `manukminasyan/filament-blog` to `relaticle/ink` a
 | `--tag=filament-blog-migrations` | `--tag=ink-migrations` |
 | `--tag=filament-blog-translations` | `--tag=ink-translations` |
 
-## What did NOT change
+### What did NOT change
 
 - Database tables stay `blog_posts`, `blog_categories`, `blog_tags`, `blog_post_tag` — **no data migration required**
 - Route names stay `blog.index`, `blog.show`, `blog.category`, `blog.preview`, `blog.feed`, `blog.tag`
 - URL prefix default stays `/blog` (override via `config('ink.prefix')`)
 - All public model methods, component APIs, MCP tool signatures
 
-## Upgrade steps
+### Upgrade steps
 
 ### 1. Swap the composer dependency
 
@@ -80,6 +126,6 @@ git mv resources/views/vendor/blog resources/views/vendor/ink
 
 Your existing tests should pass without changes (route names, DB tables, model APIs all preserved).
 
-## Need help?
+### Need help?
 
 Open an issue at https://github.com/relaticle/ink/issues
