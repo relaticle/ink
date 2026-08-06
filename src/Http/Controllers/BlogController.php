@@ -39,7 +39,7 @@ class BlogController extends Controller
             searchQuery: $request->query('q'),
         ));
 
-        return view('ink::pages.index', [
+        return view($this->viewFor('index'), [
             'posts' => $posts,
         ]);
     }
@@ -56,7 +56,7 @@ class BlogController extends Controller
 
         seo()->for($post);
 
-        return view('ink::pages.show', [
+        return view($this->viewFor('show'), [
             'post' => $post,
             'relatedPosts' => $relatedPosts,
         ]);
@@ -79,7 +79,7 @@ class BlogController extends Controller
             page: (int) request()->query('page', 1),
         ));
 
-        return view('ink::pages.category', [
+        return view($this->viewFor('category'), [
             'category' => $category,
             'posts' => $posts,
         ]);
@@ -91,7 +91,7 @@ class BlogController extends Controller
 
         seo()->for($post);
 
-        return view('ink::pages.preview', [
+        return view($this->viewFor('preview'), [
             'post' => $post,
         ]);
     }
@@ -115,7 +115,7 @@ class BlogController extends Controller
             page: (int) request()->query('page', 1),
         ));
 
-        return view('ink::pages.tag', [
+        return view($this->viewFor('tag'), [
             'tag' => $tag,
             'posts' => $posts,
         ]);
@@ -133,7 +133,14 @@ class BlogController extends Controller
             ->get();
 
         return response()
-            ->view('ink::pages.feed', ['posts' => $posts])
+            ->view($this->viewFor('feed'), ['posts' => $posts])
             ->header('Content-Type', 'application/rss+xml; charset=UTF-8');
+    }
+
+    private function viewFor(string $key): string
+    {
+        $view = config("ink.views.{$key}");
+
+        return is_string($view) && $view !== '' ? $view : "ink::pages.{$key}";
     }
 }
