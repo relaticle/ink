@@ -18,6 +18,13 @@ return [
         'sitemap' => false,
         'tags' => false,
         'media_library' => false,
+        'mcp' => false,
+    ],
+
+    'mcp' => [
+        'path' => '/mcp/blog',
+        'guard' => null,
+        'middleware' => ['auth:sanctum'],
     ],
 
     'feed' => [

@@ -5,30 +5,38 @@ declare(strict_types=1);
 namespace Relaticle\Ink\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
-use Laravel\Mcp\Server\Tool;
 use Relaticle\Ink\Enums\PostStatus;
+use Relaticle\Ink\Mcp\BlogTool;
 use Relaticle\Ink\Models\Post;
 
 #[Description('Create a new blog post. Slug is auto-generated from title. Set status to "published" and published_at to publish immediately.')]
-class CreatePostTool extends Tool
+class CreatePostTool extends BlogTool
 {
-    public function handle(Request $request): Response|ResponseFactory
+    protected function ability(): string
     {
-        if (! $request->user()?->is_admin) {
-            return Response::error('Permission denied. Admin access required.');
-        }
+        return 'create';
+    }
 
-        if (! $request->user()->tokenCan('posts:create')) {
-            return Response::error('Token missing required ability: posts:create');
-        }
+    protected function tokenAbility(): string
+    {
+        return 'posts:create';
+    }
+
+    protected function model(): string
+    {
+        return Post::class;
+    }
+
+    protected function run(Request $request, ?Model $record): Response|ResponseFactory
+    {
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
@@ -46,14 +54,18 @@ class CreatePostTool extends Tool
             'status.enum' => 'Status must be either "draft" or "published".',
         ]);
 
-        $content = Str::markdown($validated['content'], ['html_input' => 'strip', 'allow_unsafe_links' => false]);
+        $author = $this->resolveAuthorOrFail($request);
+
+        if ($author instanceof Response) {
+            return $author;
+        }
 
         $post = Post::create([
             'title' => $validated['title'],
-            'content' => $content,
+            'content' => $validated['content'],
             'excerpt' => $validated['excerpt'],
             'category_id' => $validated['category_id'],
-            'author_id' => $request->user()->id,
+            'author_id' => $author->getKey(),
             'status' => PostStatus::from($validated['status'] ?? PostStatus::Draft->value),
             'published_at' => isset($validated['published_at']) ? Carbon::parse($validated['published_at']) : null,
         ]);

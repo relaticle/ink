@@ -1,7 +1,18 @@
 {
     "name": "relaticle/ink",
     "description": "Filament-native content publishing for blog, docs, and AI-citable articles. Headless by default, with opt-in public routes.",
-    "keywords": ["laravel","filament","blog","cms","headless","mcp","seo","markdown","ink","content"],
+    "keywords": [
+        "laravel",
+        "filament",
+        "blog",
+        "cms",
+        "headless",
+        "mcp",
+        "seo",
+        "markdown",
+        "ink",
+        "content"
+    ],
     "homepage": "https://github.com/relaticle/ink",
     "support": {
         "issues": "https://github.com/relaticle/ink/issues",
@@ -11,13 +22,14 @@
     "require": {
         "php": "^8.4",
         "filament/filament": "^5.0",
-        "illuminate/contracts": "^12.0|^13.0",
-        "ralphjsmit/laravel-filament-seo": "^2.0",
-        "ralphjsmit/laravel-seo": "^1.7",
-        "spatie/laravel-markdown": "^2.7",
-        "spatie/laravel-package-tools": "^1.15",
-        "spatie/laravel-sitemap": "^7.0 || ^8.0",
-        "spatie/laravel-sluggable": "^3.0 || ^4.0"
+        "illuminate/contracts": "^13.0",
+        "league/html-to-markdown": "^5.1",
+        "ralphjsmit/laravel-filament-seo": "^2.2",
+        "ralphjsmit/laravel-seo": "^1.8",
+        "spatie/laravel-markdown": "^2.8",
+        "spatie/laravel-package-tools": "^1.93",
+        "spatie/laravel-sitemap": "^8.2",
+        "spatie/laravel-sluggable": "^4.0"
     },
     "autoload": {
         "psr-4": {
@@ -40,11 +52,15 @@
     "minimum-stability": "dev",
     "prefer-stable": true,
     "require-dev": {
-        "pestphp/pest": "^3.0",
-        "pestphp/pest-plugin-laravel": "^3.0",
-        "orchestra/testbench": "^10.0|^11.0",
-        "laravel/pint": "^1.14",
-        "laravel/mcp": "^0.5"
+        "laravel/mcp": "^0.9",
+        "laravel/pint": "^1.30",
+        "orchestra/testbench": "^11.0",
+        "pestphp/pest": "^5.0",
+        "pestphp/pest-plugin-laravel": "^5.0",
+        "laravel/sanctum": "^4.0"
+    },
+    "suggest": {
+        "laravel/mcp": "Required to expose the blog MCP tools (^0.9)."
     },
     "config": {
         "allow-plugins": {

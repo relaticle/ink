@@ -5,26 +5,35 @@ declare(strict_types=1);
 namespace Relaticle\Ink\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\Types\Type;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
-use Laravel\Mcp\Server\Tool;
+use Relaticle\Ink\Mcp\BlogTool;
 use Relaticle\Ink\Models\Category;
 
 #[Description('Create a new blog category. Slug is auto-generated from the name.')]
-class CreateCategoryTool extends Tool
+class CreateCategoryTool extends BlogTool
 {
-    public function handle(Request $request): Response|ResponseFactory
+    protected function ability(): string
     {
-        if (! $request->user()?->is_admin) {
-            return Response::error('Permission denied. Admin access required.');
-        }
+        return 'create';
+    }
 
-        if (! $request->user()->tokenCan('categories:create')) {
-            return Response::error('Token missing required ability: categories:create');
-        }
+    protected function tokenAbility(): string
+    {
+        return 'categories:create';
+    }
+
+    protected function model(): string
+    {
+        return Category::class;
+    }
+
+    protected function run(Request $request, ?Model $record): Response|ResponseFactory
+    {
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],

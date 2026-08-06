@@ -5,27 +5,35 @@ declare(strict_types=1);
 namespace Relaticle\Ink\Mcp\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\Types\Type;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
-use Laravel\Mcp\Server\Tool;
+use Relaticle\Ink\Mcp\BlogTool;
 use Relaticle\Ink\Models\Category;
 
 #[Description('Restore a previously soft-deleted blog category by ID.')]
-class RestoreCategoryTool extends Tool
+class RestoreCategoryTool extends BlogTool
 {
-    public function handle(Request $request): Response|ResponseFactory
+    protected function ability(): string
     {
-        if (! $request->user()?->is_admin) {
-            return Response::error('Permission denied. Admin access required.');
-        }
+        return 'restore';
+    }
 
-        if (! $request->user()->tokenCan('categories:delete')) {
-            return Response::error('Token missing required ability: categories:delete');
-        }
+    protected function tokenAbility(): string
+    {
+        return 'categories:delete';
+    }
 
+    protected function model(): string
+    {
+        return Category::class;
+    }
+
+    protected function resolveRecord(Request $request): Model|Response|null
+    {
         $validated = $request->validate([
             'id' => ['required', 'integer'],
         ], [
@@ -34,9 +42,13 @@ class RestoreCategoryTool extends Tool
 
         $category = Category::withTrashed()->find($validated['id']);
 
-        if (! $category) {
-            return Response::error('Category not found.');
-        }
+        return $category ?? Response::error('Category not found.');
+    }
+
+    protected function run(Request $request, ?Model $record): Response|ResponseFactory
+    {
+        /** @var Category $category */
+        $category = $record;
 
         if (! $category->trashed()) {
             return Response::error('Category is not deleted. Nothing to restore.');
