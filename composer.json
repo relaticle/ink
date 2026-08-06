@@ -56,7 +56,8 @@
         "laravel/pint": "^1.30",
         "orchestra/testbench": "^11.0",
         "pestphp/pest": "^5.0",
-        "pestphp/pest-plugin-laravel": "^5.0"
+        "pestphp/pest-plugin-laravel": "^5.0",
+        "laravel/sanctum": "^4.0"
     },
     "suggest": {
         "laravel/mcp": "Required to expose the blog MCP tools (^0.9)."

@@ -16,14 +16,15 @@ use Filament\Support\SupportServiceProvider;
 use Filament\Tables\TablesServiceProvider;
 use Filament\Widgets\WidgetsServiceProvider;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Facades\Gate;
+use Laravel\Sanctum\SanctumServiceProvider;
 use Livewire\LivewireServiceProvider;
 use Orchestra\Testbench\TestCase as BaseTestCase;
 use RalphJSmit\Laravel\SEO\LaravelSEOServiceProvider as RalphSEOServiceProvider;
 use Relaticle\Ink\InkServiceProvider;
 use Relaticle\Ink\Models\Category;
 use Relaticle\Ink\Models\Post;
+use Relaticle\Ink\Tests\Fixtures\Models\TokenUser;
 use Relaticle\Ink\Tests\Fixtures\Policies\CategoryPolicy;
 use Relaticle\Ink\Tests\Fixtures\Policies\PostPolicy;
 use Spatie\Sluggable\SluggableServiceProvider;
@@ -45,6 +46,7 @@ class TestCase extends BaseTestCase
             TablesServiceProvider::class,
             WidgetsServiceProvider::class,
             LivewireServiceProvider::class,
+            SanctumServiceProvider::class,
             RalphSEOServiceProvider::class,
             SluggableServiceProvider::class,
             InkServiceProvider::class,
@@ -63,7 +65,7 @@ class TestCase extends BaseTestCase
 
         $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
 
-        $app['config']->set('ink.author_model', User::class);
+        $app['config']->set('ink.author_model', TokenUser::class);
 
         $app['view']->addNamespace('tests', __DIR__.'/Fixtures/views');
 
