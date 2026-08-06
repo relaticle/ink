@@ -19,10 +19,11 @@ Filament-native content publishing for blog, docs, and AI-citable articles. Ship
 - **Two install modes**
   - **Headless (default)** — define your own routes/controllers, use the Blade components
   - **Public-routes mode (opt-in)** — flip a config flag, get `/blog`, `/blog/{slug}`, `/blog/category/{slug}`, signed `/blog/preview/{post}`, and optional `/blog/feed`
+- **Host-owned views** — point the `views` config map at your app's own views per action, without publishing; register `Ink::resolvePreviewEditUrlUsing()` to control the preview page's edit link
 - **Tags taxonomy** (opt-in via `features.tags`) — many-to-many `blog_post_tag` table, `TagResource` admin UI, public archive at `/blog/tag/{slug}`
 - **MediaLibrary integration** (opt-in via `features.media_library`) — when both the flag is on AND `spatie/laravel-medialibrary` is installed, the featured-image upload uses `SpatieMediaLibraryFileUpload` instead of the plain `FileUpload`. Falls back gracefully if MediaLibrary isn't installed.
 - **Sitemap Generator** — Route-aware sitemap integration via spatie/laravel-sitemap
-- **Reading-time + related-posts** helpers on the Post model
+- **Reading-time, related-posts, and table-of-contents** helpers on the Post model
 
 ## Requirements
 
@@ -67,11 +68,17 @@ To get a working blog at `/blog` without writing any controllers, flip the featu
 
 Routes register at the service-provider level — no Filament panel boot is required, so the public site keeps working for guests who never touch the admin.
 
-Publish the views if you want to customize them:
+Render your own views instead of the shipped ones by pointing the `views` config map at them — no publishing required:
 
-```bash
-php artisan vendor:publish --tag=ink-views
+```php
+// config/ink.php
+'views' => [
+    'show' => 'blog.show',
+    'preview' => 'blog.preview',
+],
 ```
+
+See [Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views) for the full data contract per action and for wiring the preview "edit this post" link.
 
 ## Documentation
 
@@ -83,6 +90,7 @@ php artisan vendor:publish --tag=ink-views
 - [Filament Admin](https://relaticle.github.io/ink/essentials/filament-admin)
 - [MCP Tools](https://relaticle.github.io/ink/essentials/mcp-tools)
 - [Configuration](https://relaticle.github.io/ink/essentials/configuration)
+- [Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views)
 
 ## Quick Example (headless)
 

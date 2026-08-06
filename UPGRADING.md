@@ -1,5 +1,82 @@
 # Upgrading
 
+## To 2.3 from 2.2
+
+### Host-owned views for public-routes mode
+
+`BlogController`'s six actions used to render only the package's own `ink::pages.*` views.
+A new `views` config key lets you point each action at a view your app already owns instead:
+
+```php
+// config/ink.php
+'views' => [
+    'index' => null,
+    'show' => null,
+    'category' => null,
+    'tag' => null,
+    'preview' => null,
+    'feed' => null,
+],
+```
+
+Every key defaults to `null`, which keeps rendering `ink::pages.*` exactly as before — this
+key is purely additive and requires no action from existing installs.
+
+See [Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views) for the
+full per-action view-data contract.
+
+### Route middleware is configurable
+
+The blog route group's middleware was hardcoded to `['web']`. It now reads from a new
+`middleware` config key, defaulting to the same `['web']`:
+
+```php
+// config/ink.php
+'middleware' => ['web'],
+```
+
+Purely additive. Add your own middleware alongside `web` — for example a response
+transformer for AI crawlers.
+
+### Preview page: edit link and related posts
+
+`preview()` now passes `relatedPosts` and `editUrl` alongside `post`. `editUrl` is `null`
+unless you register a hook in a service provider's `boot()`:
+
+```php
+use Relaticle\Ink\Ink;
+use Relaticle\Ink\Models\Post;
+
+Ink::resolvePreviewEditUrlUsing(fn (Post $post): ?string =>
+    auth('sysadmin')->check()
+        ? PostResource::getUrl('edit', ['record' => $post], panel: 'sysadmin')
+        : null);
+```
+
+If your published `preview` view doesn't reference these keys, nothing breaks — Blade
+ignores extra view data. `show` and `preview` also now eager-load `tags` on the post, so
+`$post->tags` no longer triggers a lazy-load query in either view.
+
+### `blog.feed` route is no longer registered when the feature is off
+
+Previously the `blog.feed` route was always registered, and `feed()` called
+`abort_unless(config('ink.features.feed'), 404)` at request time. The route is now
+registered only when `features.feed` is `true`; the runtime check is gone.
+
+For most hosts this is invisible — a disabled feed still 404s. It only matters if you were
+calling `route('blog.feed')` or `Route::has('blog.feed')` directly with the feature off:
+`Route::has(...)` now returns `false` instead of `true`, and `route('blog.feed')` now throws
+`RouteNotFoundException` instead of returning a URL that 404s when visited.
+
+`blog.tag` is unaffected by this change — its route still registers unconditionally and
+`tag()` still aborts at runtime when `features.tags` is off.
+
+### `/blog/preview/{post}` rejects non-numeric ids at the router
+
+The preview route now has `->whereNumber('post')`. A non-numeric segment now 404s at
+routing instead of reaching route-model binding, which could otherwise throw a database
+error on a strict-typed `id` column.
+
 ## To 2.2 from 2.1
 
 ### MCP tools authorize through your Gate
