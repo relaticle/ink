@@ -59,9 +59,8 @@ Ink's controller does three things the copies do not:
   be retired by hand once upstream caught up, and FilaForms rendering `ink::pages.*` where a
   package change would have blanked three posts. Publish and you drift; don't publish and
   upstream surprises you. Pointing ink at host-owned views avoids both.
-- Moving `App\Support\Blog\TableOfContents` upstream. It is a clean reusable parser and
-  could later become `$post->tableOfContents()`, but it is not needed to drop the
-  controllers, and its markup is host design.
+- Styling the table of contents. The *markup* stays host design; only the parser moves
+  upstream (below).
 
 ## Design
 
@@ -126,6 +125,26 @@ Ink::resolvePreviewEditUrlUsing(fn (Post $post): ?string => ...);
 
 Defaults to `null`; hosts wanting no edit link register nothing.
 
+### Table of contents
+
+`Post::tableOfContents(string $tag = 'h2'): array` returning `fragment => heading text`.
+
+This belongs in ink, not the host. The parser reads the output of `Post::toHtml()` — ink's
+own method — so a host implementing it is reverse-engineering package output. That is the
+same fragility this spec removes elsewhere, and it has already failed once: Relaticle's
+original regex-based extractor cut every heading at the first inline tag, so
+`## Using \`artisan\` commands` rendered as "Using", and double-escaped entities so
+`& chars` appeared as `&amp;`. It was guessing at ink's HTML shape and guessing wrong, while
+ink's rendering changed twice in the same week.
+
+Implementation is DOM-based, not regex: parse `toHtml()`, take each heading's `textContent`
+so inline markup (bold, code, links) survives, prefer the permalink anchor's `id` for the
+fragment — the heading's own `id` is slugified from its inner HTML and unusable — and strip
+the injected `#` anchor from the label.
+
+Hosts keep their own TOC markup and call `$post->tableOfContents()` to build it. Ink's own
+`pages/show` does not render one; adding that is out of scope.
+
 ### Route configuration
 
 ```php
@@ -166,8 +185,11 @@ the blog route group in `routes/web.php`. Set in `config/ink.php`:
 
 and register the edit-URL hook in `AppServiceProvider::boot()`.
 
-Kept unchanged: all six blog views, `blog/pagination.blade.php`, `x-blog.toc`, and
-`App\Support\Blog\TableOfContents`. The rendered design is identical.
+Also delete `app/Support/Blog/TableOfContents.php` (96 lines) and change `x-blog.toc` to
+call `$post->tableOfContents()`.
+
+Kept unchanged: all six blog views, `blog/pagination.blade.php` and the `x-blog.toc` markup.
+The rendered design is identical.
 
 Gained: the page-aware canonical, `seo()->for($post)` on show, `?q=` search, and
 `withQueryString()`.
@@ -189,6 +211,10 @@ reason. Any new top-level key (`views`, `middleware`) merges fine; anything adde
 4. **Route config** — configured middleware is applied; `/blog/preview/not-a-number` returns
    404, not 500.
 5. **Feed gating** — no feed route when `features.feed` is off; 200 when on.
+6. **Table of contents** — a heading containing bold, inline code and an entity keeps its
+   full label and single-escapes; the fragment matches the permalink anchor's `id`; a post
+   with no headings returns an empty array. These are the exact cases the host-side regex
+   got wrong, ported up as the regression lock.
 
 On the Relaticle side, the existing public-pages suite is the regression lock: it must pass
 unchanged after the controllers are deleted, proving the rendered output is identical.
