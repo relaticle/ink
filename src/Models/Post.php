@@ -266,7 +266,10 @@ class Post extends Model
 
     public function relatedPosts(int $limit = 3): Builder
     {
+        // Eager-load category: every renderer of a related post shows its badge, and a
+        // host with Model::preventLazyLoading() enabled would otherwise get a 500.
         return static::query()
+            ->with('category')
             ->published()
             ->where($this->getKeyName(), '!=', $this->getKey())
             ->when(
