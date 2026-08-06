@@ -8,6 +8,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Relaticle\Ink\Ink;
 use Relaticle\Ink\Models\Category;
 use Relaticle\Ink\Models\Post;
 use Relaticle\Ink\Models\Tag;
@@ -47,7 +48,7 @@ class BlogController extends Controller
     public function show(string $slug): View
     {
         $post = Post::query()
-            ->with(['category', 'author', 'seo'])
+            ->with(['category', 'author', 'seo', 'tags'])
             ->where('slug', $slug)
             ->published()
             ->firstOrFail();
@@ -87,12 +88,16 @@ class BlogController extends Controller
 
     public function preview(Post $post): View
     {
-        $post->loadMissing(['category', 'author', 'seo']);
+        $post->loadMissing(['category', 'author', 'seo', 'tags']);
+
+        $relatedPosts = $post->relatedPosts(limit: 3)->get();
 
         seo()->for($post);
 
         return view($this->viewFor('preview'), [
             'post' => $post,
+            'relatedPosts' => $relatedPosts,
+            'editUrl' => Ink::resolvePreviewEditUrl($post),
         ]);
     }
 

@@ -1,1 +1,1 @@
-HOST SHOW: {{ $post->title }} / related={{ $relatedPosts->count() }}
+HOST SHOW: {{ $post->title }} / related={{ $relatedPosts->count() }} / tags={{ $post->tags->count() }}
