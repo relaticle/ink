@@ -129,7 +129,7 @@ class BlogController extends Controller
     public function feed(): Response
     {
         $posts = Post::query()
-            ->with(['author', 'seo'])
+            ->with(['category', 'author', 'seo'])
             ->published()
             ->latest('published_at')
             ->limit(20)
