@@ -174,3 +174,46 @@ test('update-post-tool rejects traversal-shaped featured_image paths, even when 
 
     expect($post->fresh()->featured_image)->toBeNull();
 })->with('traversal shaped featured_image paths');
+
+// laravel/mcp does not validate tools/call arguments against the tool's advertised
+// JSON schema before invoking it — arguments are the raw decoded JSON straight into
+// Laravel\Mcp\Request, so a caller (malicious, or just a confused agent) can send any
+// JSON type for `featured_image`. Laravel's Validator does not bail on a failing
+// built-in `string` rule by default, so a custom rule closure declared alongside it
+// still runs — reachable through the real tool-call entry point, not just the
+// validator directly.
+dataset('non-string featured_image values', [
+    'integer' => [12345],
+    'float' => [1.5],
+    'boolean' => [true],
+    'array' => [['a', 'b']],
+]);
+
+test('create-post-tool rejects a non-string featured_image cleanly instead of a masked error', function (mixed $value) {
+    $category = Category::factory()->create();
+
+    BlogServer::actingAs(tokenUser())->tool(CreatePostTool::class, [
+        'title' => 'Non-string image',
+        'content' => '## Hello',
+        'excerpt' => 'An excerpt.',
+        'category_id' => $category->id,
+        'featured_image' => $value,
+    ])
+        ->assertHasErrors()
+        ->assertDontSee('An internal server error occurred.');
+
+    expect(Post::query()->where('title', 'Non-string image')->exists())->toBeFalse();
+})->with('non-string featured_image values');
+
+test('update-post-tool rejects a non-string featured_image cleanly instead of a masked error', function (mixed $value) {
+    $post = Post::factory()->create(['featured_image' => null]);
+
+    BlogServer::actingAs(tokenUser())->tool(UpdatePostTool::class, [
+        'id' => $post->id,
+        'featured_image' => $value,
+    ])
+        ->assertHasErrors()
+        ->assertDontSee('An internal server error occurred.');
+
+    expect($post->fresh()->featured_image)->toBeNull();
+})->with('non-string featured_image values');

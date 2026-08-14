@@ -112,12 +112,26 @@ abstract class BlogTool extends Tool
      * response instead of a clean validation failure. Segments are rejected outright
      * rather than relying on Flysystem's own normalizer semantics, and the disk call is
      * still wrapped defensively in case some other shape reaches it.
+     *
+     * laravel/mcp does not validate `tools/call` arguments against the tool's
+     * advertised JSON schema before invoking it, so `$value` here can be any JSON
+     * type a caller sends — and Laravel's Validator does not bail on the sibling
+     * `string` rule failing, so this closure still runs even when it did. Guard
+     * explicitly rather than let str_replace()/explode() TypeError on a non-string
+     * under strict_types, which — like the traversal exceptions above — would
+     * surface as the same masked internal-server-error instead of a clean failure.
      */
     protected function featuredImagePathRule(): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail): void {
             $directory = trim((string) config('ink.uploads.directory', 'ink'), '/');
             $invalid = "The featured image must be a path returned by upload-image, inside the [{$directory}] directory.";
+
+            if (! is_string($value)) {
+                $fail($invalid);
+
+                return;
+            }
 
             $segments = explode('/', str_replace('\\', '/', $value));
 
