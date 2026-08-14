@@ -170,7 +170,17 @@ class Post extends Model
     {
         return Cache::rememberForever(
             "post-rendered:{$this->id}",
-            fn (): string => app(MarkdownRenderer::class)->toHtml($this->content),
+            // Post images live below the fold in a text-first layout, so they're
+            // marked lazy at render time. MarkdownRenderer has no config hook for
+            // image attributes, and CommonMark's image renderer always emits
+            // `<img src="..."` (never a bare `<img>`), so a post-replace on that one
+            // tag shape is reliable — the same technique the host app's own doc
+            // renderer already uses.
+            fn (): string => str_replace(
+                '<img ',
+                '<img loading="lazy" decoding="async" ',
+                app(MarkdownRenderer::class)->toHtml($this->content),
+            ),
         );
     }
 

@@ -41,3 +41,16 @@ test('relatedPosts returns empty when post has no category', function () {
 
     expect($self->relatedPosts()->get())->toBeEmpty();
 });
+
+test('toHtml adds loading=lazy and decoding=async to every rendered image', function () {
+    $post = Post::factory()->create([
+        'content' => "Intro text.\n\n![First image](https://example.test/one.png)\n\nMiddle text.\n\n![Second image](https://example.test/two.png)",
+    ]);
+
+    $html = $post->toHtml();
+
+    expect(substr_count($html, '<img loading="lazy" decoding="async" '))->toBe(2)
+        ->and($html)->toContain('src="https://example.test/one.png"')
+        ->and($html)->toContain('src="https://example.test/two.png"')
+        ->and($html)->toContain('alt="First image"');
+});
