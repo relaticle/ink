@@ -16,6 +16,7 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Tool;
+use League\Flysystem\FilesystemException;
 use Relaticle\Ink\Ink;
 
 /**
@@ -101,19 +102,46 @@ abstract class BlogTool extends Tool
      * configured disk. Shared by create/update post tools rather than duplicated,
      * since the same check also blocks path injection into the hardcoded
      * `asset('storage/…')` renderers (Post::getDynamicSEOData() and friends).
+     *
+     * A plain `Str::startsWith($value, "{$directory}/")` is not confinement: Flysystem's
+     * local adapter normalizes `..` segments by default (`allow_relative_path_traversal`
+     * defaults to `true`), so e.g. "ink/x/../../other/secret.png" starts with the confined
+     * prefix as a string but resolves to a file outside it, and a value with more `..`
+     * segments than depth (e.g. "ink/../../secret.png") throws an uncaught
+     * `PathTraversalDetected` that would otherwise surface as a masked internal-server-error
+     * response instead of a clean validation failure. Segments are rejected outright
+     * rather than relying on Flysystem's own normalizer semantics, and the disk call is
+     * still wrapped defensively in case some other shape reaches it.
      */
     protected function featuredImagePathRule(): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail): void {
             $directory = trim((string) config('ink.uploads.directory', 'ink'), '/');
+            $invalid = "The featured image must be a path returned by upload-image, inside the [{$directory}] directory.";
 
-            if (! Str::startsWith($value, $directory.'/')) {
-                $fail("The featured image must be a path returned by upload-image, inside the [{$directory}] directory.");
+            $segments = explode('/', str_replace('\\', '/', $value));
+
+            if (in_array('..', $segments, true) || in_array('.', $segments, true) || in_array('', $segments, true)) {
+                $fail($invalid);
 
                 return;
             }
 
-            if (! Storage::disk(config('ink.uploads.disk', 'public'))->exists($value)) {
+            if (! Str::startsWith($value, $directory.'/')) {
+                $fail($invalid);
+
+                return;
+            }
+
+            try {
+                $exists = Storage::disk(config('ink.uploads.disk', 'public'))->exists($value);
+            } catch (FilesystemException) {
+                $fail($invalid);
+
+                return;
+            }
+
+            if (! $exists) {
                 $fail('The featured image was not found. Upload it first with upload-image.');
             }
         };

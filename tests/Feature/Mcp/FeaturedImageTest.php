@@ -129,3 +129,48 @@ test('update-post-tool rejects a featured_image path that does not exist on the 
 
     expect($post->fresh()->featured_image)->toBeNull();
 });
+
+// Flysystem's local adapter normalizes `..` segments by default
+// (allow_relative_path_traversal defaults to true), so a value that merely
+// *starts with* "ink/" as a string can still resolve outside it once
+// normalized. These paths all start with the confined prefix as a string but
+// must still be rejected once resolved.
+dataset('traversal shaped featured_image paths', [
+    'pop back out to a sibling directory' => ['ink/x/../../other/secret.png'],
+    'single .. still escaping the directory' => ['ink/../other/secret.png'],
+    'over-popping (more .. than depth)' => ['ink/../../other/secret.png'],
+    'leading ..' => ['../ink/secret.png'],
+]);
+
+test('create-post-tool rejects traversal-shaped featured_image paths, even when the resolved target exists', function (string $path) {
+    Storage::disk('public')->put('other/secret.png', 'not yours');
+
+    $category = Category::factory()->create();
+
+    BlogServer::actingAs(tokenUser())->tool(CreatePostTool::class, [
+        'title' => 'Traversal attempt '.$path,
+        'content' => '## Hello',
+        'excerpt' => 'An excerpt.',
+        'category_id' => $category->id,
+        'featured_image' => $path,
+    ])
+        ->assertHasErrors(['must be a path returned by upload-image'])
+        ->assertDontSee('An internal server error occurred.');
+
+    expect(Post::query()->where('title', 'Traversal attempt '.$path)->exists())->toBeFalse();
+})->with('traversal shaped featured_image paths');
+
+test('update-post-tool rejects traversal-shaped featured_image paths, even when the resolved target exists', function (string $path) {
+    Storage::disk('public')->put('other/secret.png', 'not yours');
+
+    $post = Post::factory()->create(['featured_image' => null]);
+
+    BlogServer::actingAs(tokenUser())->tool(UpdatePostTool::class, [
+        'id' => $post->id,
+        'featured_image' => $path,
+    ])
+        ->assertHasErrors(['must be a path returned by upload-image'])
+        ->assertDontSee('An internal server error occurred.');
+
+    expect($post->fresh()->featured_image)->toBeNull();
+})->with('traversal shaped featured_image paths');
