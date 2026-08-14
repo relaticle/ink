@@ -13,6 +13,12 @@ const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk
 // A genuine 1x1 transparent GIF.
 const GIF_BASE64 = 'R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
+// A genuine 1x1 red JPEG.
+const JPEG_BASE64 = '/9j/4AAQSkZJRgABAQEAYABgAAD//gA7Q1JFQVRPUjogZ2QtanBlZyB2MS4wICh1c2luZyBJSkcgSlBFRyB2NjIpLCBxdWFsaXR5ID0gOTAK/9sAQwADAgIDAgIDAwMDBAMDBAUIBQUEBAUKBwcGCAwKDAwLCgsLDQ4SEA0OEQ4LCxAWEBETFBUVFQwPFxgWFBgSFBUU/9sAQwEDBAQFBAUJBQUJFA0LDRQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU/8AAEQgAAQABAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/aAAwDAQACEQMRAD8A+dKKKK/DD/VM/9k=';
+
+// A genuine 1x1 green WEBP.
+const WEBP_BASE64 = 'UklGRkAAAABXRUJQVlA4IDQAAAAQAgCdASoBAAEAAMASJaACdLoB+AH6AAPIAP7uvZ//cvafonw/7qK//lB+EYg2/+ViAAAA';
+
 beforeEach(function () {
     Storage::fake('public');
 });
@@ -137,6 +143,27 @@ test('a gif is accepted', function () {
     $path = uploadAndCapturePath(['data' => GIF_BASE64]);
 
     expect($path)->toEndWith('.gif');
+});
+
+test('a jpeg is accepted', function () {
+    $path = uploadAndCapturePath(['data' => JPEG_BASE64]);
+
+    expect($path)->toEndWith('.jpg');
+});
+
+test('a webp is accepted', function () {
+    $path = uploadAndCapturePath(['data' => WEBP_BASE64]);
+
+    expect($path)->toEndWith('.webp');
+});
+
+test('a non-http(s) url scheme is rejected', function () {
+    BlogServer::actingAs(tokenUser())->tool(UploadImageTool::class, [
+        'url' => 'ftp://example.test/passwd',
+    ])->assertSee('Only http and https URLs are supported.');
+
+    Http::assertNothingSent();
+    expect(Storage::disk('public')->allFiles('ink'))->toBeEmpty();
 });
 
 test('providing neither url nor data is rejected', function () {
