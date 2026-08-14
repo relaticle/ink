@@ -79,6 +79,54 @@ test('an image over the configured max size is rejected', function () {
     expect(Storage::disk('public')->allFiles('ink'))->toBeEmpty();
 });
 
+test('an oversized base64 payload is rejected by its encoded length before it is decoded', function () {
+    config()->set('ink.uploads.max_bytes', 100);
+
+    // A real, validly-encoded payload whose decoded size (150 bytes) sits just over
+    // the 100-byte cap. The encoded-length pre-check in decode() must reject this
+    // before base64_decode() ever runs on it.
+    $justOverCap = base64_encode(str_repeat('x', 150));
+
+    BlogServer::actingAs(tokenUser())->tool(UploadImageTool::class, [
+        'data' => $justOverCap,
+    ])->assertSee('exceeds the maximum upload size');
+
+    expect(Storage::disk('public')->allFiles('ink'))->toBeEmpty();
+});
+
+test('a url response advertising an oversized Content-Length is rejected before the body is downloaded', function () {
+    config()->set('ink.uploads.max_bytes', 1024);
+
+    Http::fake(function ($request) {
+        if ($request->method() === 'HEAD') {
+            return Http::response('', 200, ['Content-Length' => '999999']);
+        }
+
+        return Http::response(str_repeat('x', 999999), 200, ['Content-Type' => 'image/png']);
+    });
+
+    BlogServer::actingAs(tokenUser())->tool(UploadImageTool::class, [
+        'url' => 'https://example.test/huge.png',
+    ])->assertSee('exceeds the maximum upload size');
+
+    Http::assertNotSent(fn ($request) => $request->method() === 'GET');
+    expect(Storage::disk('public')->allFiles('ink'))->toBeEmpty();
+});
+
+test('a url response that never advertises Content-Length is still rejected once downloaded and measured', function () {
+    config()->set('ink.uploads.max_bytes', 1024);
+
+    Http::fake([
+        'https://example.test/huge-no-length.png' => Http::response(str_repeat('x', 999999), 200, ['Content-Type' => 'image/png']),
+    ]);
+
+    BlogServer::actingAs(tokenUser())->tool(UploadImageTool::class, [
+        'url' => 'https://example.test/huge-no-length.png',
+    ])->assertSee('exceeds the maximum upload size');
+
+    expect(Storage::disk('public')->allFiles('ink'))->toBeEmpty();
+});
+
 test('the stored extension is derived from sniffed content, not a spoofed filename', function () {
     $path = uploadAndCapturePath(['data' => PNG_BASE64, 'filename' => 'totally-a-photo.jpg']);
 

@@ -7,6 +7,7 @@ namespace Relaticle\Ink\Mcp\Tools;
 use finfo;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -107,6 +108,13 @@ class UploadImageTool extends BlogTool
             return Response::error('Only http and https URLs are supported.');
         }
 
+        $maxBytes = (int) config('ink.uploads.max_bytes', 5 * 1024 * 1024);
+        $contentLength = $this->contentLengthFor($url);
+
+        if ($contentLength !== null && $contentLength > $maxBytes) {
+            return Response::error("The image exceeds the maximum upload size of {$maxBytes} bytes.");
+        }
+
         $response = Http::timeout(15)->get($url);
 
         if ($response->failed()) {
@@ -116,8 +124,43 @@ class UploadImageTool extends BlogTool
         return $response->body();
     }
 
+    /**
+     * Best-effort: a HEAD request lets a well-behaved server's Content-Length reject an
+     * oversized image before its body is ever downloaded. A missing/unreliable header
+     * here is not fatal — the strlen() check in run() still catches an oversized body
+     * that was fetched anyway.
+     */
+    private function contentLengthFor(string $url): ?int
+    {
+        try {
+            $head = Http::timeout(5)->head($url);
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        if (! $head->successful()) {
+            return null;
+        }
+
+        $length = $head->header('Content-Length');
+
+        return $length !== null && $length !== '' ? (int) $length : null;
+    }
+
     private function decode(string $data): string|Response
     {
+        $maxBytes = (int) config('ink.uploads.max_bytes', 5 * 1024 * 1024);
+
+        // Base64 expands 3 raw bytes into 4 encoded characters. Reject an oversized
+        // payload by its encoded length before ever calling base64_decode() on it,
+        // instead of decoding a potentially huge string just to discard it a moment
+        // later once the decoded size check runs.
+        $maxEncodedLength = ((int) ceil($maxBytes / 3)) * 4 + 4;
+
+        if (strlen($data) > $maxEncodedLength) {
+            return Response::error("The image exceeds the maximum upload size of {$maxBytes} bytes.");
+        }
+
         $decoded = base64_decode($data, true);
 
         if ($decoded === false) {
