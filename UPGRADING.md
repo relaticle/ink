@@ -57,12 +57,42 @@ guidance if you need a higher cap.
 
 ### Rendered post images get `loading="lazy"` and `decoding="async"`
 
-`Post::toHtml()` now post-processes every `<img>` CommonMark emits to add
-`loading="lazy" decoding="async"`, the same technique already used elsewhere for
-below-the-fold article images. This is cache-invalidating: existing posts' cached rendered
-HTML (`post-rendered:{id}`) predates the change and won't pick up the new attributes until
-their content is next saved (which busts the cache) or you clear it manually. Purely
-additive to the rendered markup — no config, no opt-out.
+Both render paths now post-process every `<img>` in the rendered HTML to add
+`loading="lazy" decoding="async"`: `Post::toHtml()` (behind `<x-ink::post-body>`) and the
+new `Post::toSafeHtml()` behind the shipped `ink::pages.show` / `ink::pages.preview` views.
+An attribute the author already declared is left alone — `<img loading="eager">` written as
+raw HTML in post markdown keeps `eager` and gains only `decoding`, since emitting a second
+`loading` would be invalid HTML that browsers resolve in favour of the *first* occurrence.
+
+For `toHtml()` this is cache-invalidating: existing posts' cached rendered HTML
+(`post-rendered:{id}`) predates the change and won't pick up the new attributes until their
+content is next saved (which busts the cache) or you clear it manually. `toSafeHtml()` is
+not cached, so the shipped pages pick the attributes up immediately. Purely additive to the
+rendered markup — no config, no opt-out.
+
+### `Post::toSafeHtml()`, and the two render paths
+
+The shipped `show` / `preview` views used to call
+`Str::markdown($post->content, ['html_input' => 'strip', 'allow_unsafe_links' => false])`
+inline. That option set now lives on the model as `Post::toSafeHtml()` and both views call
+it — no behavior change to what those two pages render, beyond the image attributes above.
+
+If you render posts from a **host-owned view**, note that the package's two renderers are
+not equivalent and never have been:
+
+| | `toSafeHtml()` | `toHtml()` / `renderedContent()` / `<x-ink::post-body>` |
+|---|---|---|
+| Raw HTML in content | stripped | governed by your `markdown.commonmark_options.html_input` (CommonMark defaults to `allow`) |
+| `javascript:` links | disarmed | governed by `allow_unsafe_links` (defaults to `true`) |
+| GFM tables, strikethrough, task lists, autolinks | yes | only if you add the extension to `markdown.extensions` |
+| Heading permalink anchors, code highlighting | no | per your `markdown` config |
+| `tableOfContents()` compatible | no | yes |
+| Cached | no | `post-rendered:{id}`, forever |
+
+If your posts are authored only by trusted staff and you want anchors, highlighting and your
+own extensions, `<x-ink::post-body>` is the right call — but make sure
+`markdown.commonmark_options` pins `html_input` and `allow_unsafe_links` to values you
+actually intend, because that path inherits them from your app's config, not from ink.
 
 ## To 2.3 from 2.2
 

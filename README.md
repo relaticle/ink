@@ -100,8 +100,10 @@ is fetched by this server's own HTTP client, not carried in the MCP request body
 so prefer it for anything larger than a few MB.
 ::
 
-Rendered post images automatically get `loading="lazy"` and `decoding="async"` (see
-`Post::toHtml()`). There is no automatic resizing, format conversion, or `srcset`
+Rendered post images automatically get `loading="lazy"` and `decoding="async"` on both
+render paths (`Post::toHtml()` behind `<x-ink::post-body>`, and `Post::toSafeHtml()` behind
+the shipped page views); an attribute the author declared by hand is left untouched. There
+is no automatic resizing, format conversion, or `srcset`
 generation — an oversized source image is served at its original dimensions and file size,
 which still costs bandwidth and LCP even with lazy loading. This is a known limitation, not
 a bug: keep source images reasonably sized (a few hundred KB, not multiple MB) before
