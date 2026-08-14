@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Relaticle\Ink\Mcp\BlogServer;
 use Relaticle\Ink\Mcp\Tools\UploadImageTool;
+use Relaticle\Ink\Tests\Fixtures\CountingStream;
 
 // A genuine 1x1 transparent PNG.
 const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
@@ -131,6 +132,38 @@ test('a url response that never advertises Content-Length is still rejected once
     ])->assertSee('exceeds the maximum upload size');
 
     expect(Storage::disk('public')->allFiles('ink'))->toBeEmpty();
+});
+
+test('a streamed url response with no Content-Length aborts reading once the cap is exceeded, without consuming the full body', function () {
+    // Http::fake() otherwise buffers the whole response body as a plain string up
+    // front, which would make it impossible to prove black-box that the capped
+    // reader actually stops early rather than reading to the end — every assertion
+    // on the outcome alone would pass identically either way. A lazily-generating
+    // stream double makes the mechanism itself observable (see CountingStream's own
+    // docblock), the same reasoning tests/Feature/BlogRouteConfigTest.php already
+    // uses to assert on a compiled route's constraint directly where black-box HTTP
+    // assertions alone can't distinguish a present vs. absent guard.
+    config()->set('ink.uploads.max_bytes', 1024);
+
+    $stream = new CountingStream(50 * 1024 * 1024);
+
+    Http::fake(function ($request) use ($stream) {
+        if ($request->method() === 'HEAD') {
+            // No Content-Length: forces the pre-check to fall through to the
+            // streamed GET, which is the path under test here.
+            return Http::response('', 200);
+        }
+
+        return Http::response($stream, 200, ['Content-Type' => 'image/png']);
+    });
+
+    BlogServer::actingAs(tokenUser())->tool(UploadImageTool::class, [
+        'url' => 'https://example.test/huge-stream.png',
+    ])->assertSee('exceeds the maximum upload size');
+
+    expect($stream->bytesRead)
+        ->toBeGreaterThanOrEqual(1024)
+        ->toBeLessThan(50 * 1024 * 1024);
 });
 
 test('the stored extension is derived from sniffed content, not a spoofed filename', function () {

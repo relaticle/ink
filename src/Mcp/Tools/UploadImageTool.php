@@ -16,8 +16,10 @@ use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
+use Psr\Http\Message\StreamInterface;
 use Relaticle\Ink\Mcp\BlogTool;
 use Relaticle\Ink\Models\Post;
+use Throwable;
 
 #[Description('Upload an image for use in a post (as the featured image or embedded in markdown content). Provide either a fetchable url or base64-encoded data, not both. Returns a storage path (pass it as featured_image on create/update-post-tool), a public url, and a ready-to-paste markdown snippet.')]
 class UploadImageTool extends BlogTool
@@ -115,13 +117,48 @@ class UploadImageTool extends BlogTool
             return Response::error("The image exceeds the maximum upload size of {$maxBytes} bytes.");
         }
 
-        $response = Http::timeout(15)->get($url);
+        try {
+            // `stream: true` stops Guzzle eagerly buffering the whole response body
+            // into memory before get() returns — the actual transfer happens as
+            // readCapped() below pulls chunks off the PSR-7 stream, so a server that
+            // omits (or understates) Content-Length still can't force a full download
+            // past the cap. The HEAD check above is only the cheap fast path.
+            $response = Http::timeout(15)->withOptions(['stream' => true])->get($url);
+        } catch (ConnectionException) {
+            return Response::error('Could not fetch the image from the provided URL.');
+        }
 
         if ($response->failed()) {
             return Response::error("Could not fetch the image from the provided URL (HTTP {$response->status()}).");
         }
 
-        return $response->body();
+        return $this->readCapped($response->toPsrResponse()->getBody(), $maxBytes);
+    }
+
+    /**
+     * Reads the stream in bounded chunks and aborts the moment cumulative bytes exceed
+     * the cap, instead of Response::body(), which buffers the entire stream into memory
+     * before anything could be checked.
+     */
+    private function readCapped(StreamInterface $stream, int $maxBytes): string|Response
+    {
+        $buffer = '';
+
+        try {
+            while (! $stream->eof()) {
+                $buffer .= $stream->read(65536);
+
+                if (strlen($buffer) > $maxBytes) {
+                    return Response::error("The image exceeds the maximum upload size of {$maxBytes} bytes.");
+                }
+            }
+        } catch (Throwable) {
+            return Response::error('Could not fetch the image from the provided URL.');
+        } finally {
+            $stream->close();
+        }
+
+        return $buffer;
     }
 
     /**
