@@ -22,10 +22,11 @@ use Relaticle\Ink\Mcp\Tools\RestoreCategoryTool;
 use Relaticle\Ink\Mcp\Tools\RestorePostTool;
 use Relaticle\Ink\Mcp\Tools\UpdateCategoryTool;
 use Relaticle\Ink\Mcp\Tools\UpdatePostTool;
+use Relaticle\Ink\Mcp\Tools\UploadImageTool;
 
 #[Name('Blog')]
 #[Version('2.0.0')]
-#[Instructions('Manage blog posts and categories. Full CRUD with soft delete (no hard delete). Posts carry title, markdown content, excerpt, category, status (draft/published) and published_at.')]
+#[Instructions('Manage blog posts and categories. Full CRUD with soft delete (no hard delete). Posts carry title, markdown content, excerpt, category, status (draft/published) and published_at — a future published_at with status published schedules the post; it appears on public/feed/sitemap routes automatically once the clock passes, no further action needed. Use upload-image to get a storage path for a featured_image or an in-content markdown image.')]
 class BlogServer extends Server
 {
     /** @var array<int, class-string<Tool>> */
@@ -37,6 +38,7 @@ class BlogServer extends Server
         DeletePostTool::class,
         RestorePostTool::class,
         GeneratePreviewUrlTool::class,
+        UploadImageTool::class,
         ListCategoriesTool::class,
         GetCategoryTool::class,
         CreateCategoryTool::class,

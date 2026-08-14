@@ -42,6 +42,18 @@ return [
         'middleware' => ['auth:sanctum'],
     ],
 
+    /*
+     * Where upload-image and the featured_image param on create/update-post-tool
+     * store and validate images. Deliberately matches the Filament FileUpload
+     * defaults on the featured image field (disk "public", directory "ink"), so
+     * panel and MCP uploads land in one place.
+     */
+    'uploads' => [
+        'disk' => 'public',
+        'directory' => 'ink',
+        'max_bytes' => 5 * 1024 * 1024,
+    ],
+
     'feed' => [
         'title' => null,
         'description' => null,
