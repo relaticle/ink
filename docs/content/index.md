@@ -69,7 +69,7 @@ What's included
   MCP tools for AI
   
   #description
-  13 Model Context Protocol tools so AI agents can write and publish posts. Sanctum-gated and markdown-sanitized.
+  14 Model Context Protocol tools so AI agents can write, illustrate, and publish posts. Sanctum-gated and markdown-sanitized.
   :::
 
   :::u-page-feature

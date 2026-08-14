@@ -1,5 +1,50 @@
 # Upgrading
 
+## To 2.4 from 2.3
+
+### `blog.preview` is now registered when `features.mcp` is enabled, not only `features.public_routes`
+
+`GeneratePreviewUrlTool` generated a URL for `blog.preview` even when that route wasn't
+registered (public routes off, mcp on) — an uncaught `RouteNotFoundException` masked as `An
+internal server error occurred.`. The signed `/blog/preview/{post}` route now registers
+whenever **either** `features.public_routes` **or** `features.mcp` is `true`; the rest of
+the public routes (`blog.index`, `blog.show`, `blog.category`, `blog.feed`) are unaffected
+and still require `features.public_routes`.
+
+If you run `route:cache`, enabling `features.mcp` (or `features.public_routes`) now also
+changes route registration — `php artisan route:clear` (or a fresh `route:cache`) after
+flipping either flag, matching the existing `blog.feed` / `features.feed` behavior from 2.3.
+
+The tool itself still guards with `Route::has('blog.preview')` and returns an actionable
+error instead of throwing if the route is somehow absent — this should not trip in a
+correctly booted app.
+
+### `UpdatePostTool` and `UpdateCategoryTool` now actually persist changes
+
+Both tools had a scope bug since 2.2.0: validated data was read from an undefined variable
+in `run()`, so every update silently no-oped (post) or threw a masked DB error (category,
+whose `name` column is `NOT NULL`). If you were working around this — retrying updates,
+falling back to the Filament admin, or polling `updated_at` to detect success — that
+workaround is no longer necessary; updates now persist on the first call.
+
+### New `uploads` config key
+
+```php
+// config/ink.php
+'uploads' => [
+    'disk' => 'public',
+    'directory' => 'ink',
+    'max_bytes' => 5 * 1024 * 1024,
+],
+```
+
+Purely additive — top-level, so it merges into an already-published `config/ink.php`
+automatically (see the shallow-merge caution in
+[Configuration](/essentials/configuration)). Used by the new `upload-image` MCP tool and by
+the `featured_image` param on `create-post-tool` / `update-post-tool`. Defaults match the
+Filament featured-image field's disk and directory, so panel and MCP uploads land in one
+place; republish the config only if you want different values.
+
 ## To 2.3 from 2.2
 
 ### Host-owned views for public-routes mode

@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] - 2026-08-14
+
+### Added
+- `UploadImageTool` MCP tool (`upload-image`): uploads an image from a fetchable URL or base64 data, sniffs the actual bytes to whitelist `jpeg`/`png`/`gif`/`webp` (no `svg`), enforces a configurable max size, and returns a storage path, public URL, and ready-to-paste markdown snippet. Shares the `create` Gate ability and `posts:create` token ability with `CreatePostTool`.
+- `featured_image` param on `CreatePostTool` and `UpdatePostTool`, accepting a path returned by `upload-image`. Validated against the configured uploads disk and directory to reject path injection; `null` on update clears it.
+- New top-level `uploads` config key (`disk`, `directory`, `max_bytes`), defaulting to the same `public` disk / `ink` directory the Filament featured-image field already uses.
+- `blog.preview` is now also registered when `features.mcp` is enabled (previously only `features.public_routes`), so `GeneratePreviewUrlTool` works pre-launch, with the rest of the public blog dark. See [UPGRADING.md](UPGRADING.md) for the `route:cache` implication.
+
+### Fixed
+- `UpdatePostTool` silently no-oped on every call: validated data was read from a variable never assigned in `run()`'s scope, so `Post::update([])` ran with nothing dirty while the tool reported a normal-looking (but stale) success payload. Introduced in 2.2.0's `resolveRecord()`/`run()` refactor.
+- `UpdateCategoryTool` had the same scope bug, but surfaced as a masked "An internal server error occurred." instead of a no-op, since `blog_categories.name` is `NOT NULL`.
+- `GeneratePreviewUrlTool` threw an uncaught `RouteNotFoundException` (masked as the same generic internal error) when `blog.preview` wasn't registered. It now guards with `Route::has()` and returns an actionable error; combined with the routing fix above, this should not trip in a correctly booted app.
+
 ## [2.3.0] - 2026-08-06
 
 ### Added

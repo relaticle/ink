@@ -14,7 +14,7 @@ Filament-native content publishing for blog, docs, and AI-citable articles. Ship
 - **SEO Components** — Meta tags, Open Graph, Twitter Cards, RSS feed, per-page canonicals on paginated listings
 - **JSON-LD Schema** — `BlogPosting` + `BreadcrumbList` on post pages, `FAQPage` and `HowTo` auto-detected from content (opt-in), `Blog` + `CollectionPage` on listings
 - **Search** — Portable `Post::search()` scope (LIKE by default, override for FTS / Scout), drop-in `BlogSearch` Livewire component with `?q=` URL sync
-- **13 MCP Tools** — Full CRUD for posts and categories via Model Context Protocol, authorized through your app's Gate and Sanctum token abilities. Ships a ready-to-register `BlogServer`; requires `laravel/mcp`
+- **14 MCP Tools** — Full CRUD for posts and categories via Model Context Protocol, plus image uploads (URL or base64, mime-sniffed) for featured images and in-content markdown, authorized through your app's Gate and Sanctum token abilities. Ships a ready-to-register `BlogServer`; requires `laravel/mcp`
 - **Publishable UI Components** — Post card, header, body, related posts, category badge, preview banner — all with dark mode
 - **Two install modes**
   - **Headless (default)** — define your own routes/controllers, use the Blade components
