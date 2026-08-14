@@ -7,6 +7,7 @@ namespace Relaticle\Ink\Mcp\Tools;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
@@ -42,6 +43,15 @@ class GeneratePreviewUrlTool extends BlogTool
 
     protected function run(Request $request, ?Model $record): Response|ResponseFactory
     {
+        // Defensive fallback: InkServiceProvider registers blog.preview whenever either
+        // public_routes or mcp is enabled, so this should never trip in a correctly
+        // booted app. It exists so a misconfigured host gets an actionable error instead
+        // of a masked "An internal server error occurred." from an uncaught
+        // RouteNotFoundException.
+        if (! Route::has('blog.preview')) {
+            return Response::error('The preview route is not registered — enable ink.features.public_routes or ink.features.mcp.');
+        }
+
         return Response::text(
             URL::temporarySignedRoute('blog.preview', now()->addHour(), ['post' => $record])
         );

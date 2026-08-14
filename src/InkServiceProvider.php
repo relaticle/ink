@@ -44,13 +44,20 @@ class InkServiceProvider extends PackageServiceProvider
     {
         Blade::componentNamespace('Relaticle\\Ink\\Components', 'ink');
 
+        $mcpEnabled = config('ink.features.mcp') && class_exists(McpFacade::class);
+
         if (config('ink.features.public_routes')) {
             $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
+            $this->loadRoutesFrom(__DIR__.'/../routes/preview.php');
+        } elseif ($mcpEnabled) {
+            // GeneratePreviewUrlTool needs blog.preview even while the rest of the
+            // public blog is dark — it's the only public_routes route MCP depends on.
+            $this->loadRoutesFrom(__DIR__.'/../routes/preview.php');
         }
 
         // laravel/mcp is a suggestion, not a requirement: a host that enables the flag
         // without installing it gets no route rather than a fatal error.
-        if (config('ink.features.mcp') && class_exists(McpFacade::class)) {
+        if ($mcpEnabled) {
             $this->loadRoutesFrom(__DIR__.'/../routes/mcp.php');
         }
 
