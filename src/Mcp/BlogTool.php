@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Relaticle\Ink\Mcp;
 
+use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
@@ -90,5 +93,29 @@ abstract class BlogTool extends Tool
         return $author instanceof Model
             ? $author
             : Response::error('No author could be resolved for this caller. Configure Ink::resolveAuthorUsing().');
+    }
+
+    /**
+     * A `featured_image` value must be a path this package itself produced via
+     * `upload-image` — inside the configured uploads directory and present on the
+     * configured disk. Shared by create/update post tools rather than duplicated,
+     * since the same check also blocks path injection into the hardcoded
+     * `asset('storage/…')` renderers (Post::getDynamicSEOData() and friends).
+     */
+    protected function featuredImagePathRule(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            $directory = trim((string) config('ink.uploads.directory', 'ink'), '/');
+
+            if (! Str::startsWith($value, $directory.'/')) {
+                $fail("The featured image must be a path returned by upload-image, inside the [{$directory}] directory.");
+
+                return;
+            }
+
+            if (! Storage::disk(config('ink.uploads.disk', 'public'))->exists($value)) {
+                $fail('The featured image was not found. Upload it first with upload-image.');
+            }
+        };
     }
 }

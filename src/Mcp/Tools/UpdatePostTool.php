@@ -60,6 +60,7 @@ class UpdatePostTool extends BlogTool
             'title' => ['nullable', 'string', 'max:255'],
             'content' => ['nullable', 'string'],
             'excerpt' => ['nullable', 'string', 'max:500'],
+            'featured_image' => ['nullable', 'string', $this->featuredImagePathRule()],
             'category_id' => ['sometimes', 'integer', 'exists:blog_categories,id'],
             'status' => ['nullable', 'string', Rule::enum(PostStatus::class)],
             'published_at' => ['nullable', 'date'],
@@ -79,6 +80,10 @@ class UpdatePostTool extends BlogTool
             'excerpt' => $validated['excerpt'] ?? null,
             'category_id' => $validated['category_id'] ?? null,
         ], fn ($value) => $value !== null);
+
+        if ($request->has('featured_image')) {
+            $data['featured_image'] = $validated['featured_image'] ?? null;
+        }
 
         if (isset($validated['status'])) {
             $data['status'] = PostStatus::from($validated['status']);
@@ -112,6 +117,7 @@ class UpdatePostTool extends BlogTool
             'slug' => $post->slug,
             'status' => $post->status->value,
             'category' => $post->category?->name,
+            'featured_image' => $post->featured_image,
             'seo_title' => $post->seo->title,
             'seo_description' => $post->seo->description,
             'published_at' => $post->published_at?->toIso8601String(),
@@ -127,6 +133,7 @@ class UpdatePostTool extends BlogTool
             'title' => $schema->string()->description('New title.'),
             'content' => $schema->string()->description('New content in Markdown. Converted to HTML on save.'),
             'excerpt' => $schema->string()->description('New excerpt.'),
+            'featured_image' => $schema->string()->description('New featured image path, as returned by upload-image (e.g. "ink/xxx.webp"). Pass null to clear it.'),
             'category_id' => $schema->integer()->description('New category ID.'),
             'status' => $schema->string()->enum(array_column(PostStatus::cases(), 'value'))->description('New status.'),
             'published_at' => $schema->string()->description('New publish date (ISO 8601).'),
