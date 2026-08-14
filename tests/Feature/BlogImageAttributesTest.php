@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Relaticle\Ink\InkServiceProvider;
 use Relaticle\Ink\Models\Post;
+use Relaticle\Ink\Support\ImageAttributes;
 
 beforeEach(function () {
     config()->set('ink.features.public_routes', true);
@@ -94,6 +95,37 @@ test('an alt text mentioning loading does not suppress the attributes', function
 
     expect($post->toHtml())
         ->toContain('<img loading="lazy" decoding="async" src="https://example.test/x.png" alt="loading=fast, decoding=none">');
+});
+
+// CommonMark rejects a raw-HTML tag whose *unquoted* attribute value contains `=` and
+// escapes the whole thing as text, so this shape cannot reach markLazy() through post
+// markdown today. It is asserted on the helper directly because markLazy() post-processes
+// whatever HTML the configured renderer produced, and nothing pins that to CommonMark.
+test('an unquoted value mentioning loading does not suppress the attributes', function () {
+    $tag = '<img src=https://example.test/x.png?loading=true alt="Test">';
+
+    expect(ImageAttributes::markLazy($tag))
+        ->toBe('<img loading="lazy" decoding="async" src=https://example.test/x.png?loading=true alt="Test">');
+});
+
+test('a data-loading attribute does not suppress the attributes', function () {
+    $post = Post::factory()->create([
+        'content' => '<img data-loading="1" src="https://example.test/x.png" alt="Test">',
+    ]);
+
+    expect($post->toHtml())
+        ->toContain('<img loading="lazy" decoding="async" data-loading="1" src="https://example.test/x.png" alt="Test">');
+});
+
+test('an unquoted declared attribute still suppresses injection and survives untouched', function () {
+    $post = Post::factory()->create([
+        'content' => '<img loading=eager src=https://example.test/hero.png alt="Hero">',
+    ]);
+
+    expect($post->toHtml())
+        ->toContain('<img decoding="async" loading=eager src=https://example.test/hero.png alt="Hero">')
+        ->and(substr_count($post->toHtml(), 'loading='))->toBe(1)
+        ->and(substr_count($post->toHtml(), 'decoding='))->toBe(1);
 });
 
 test('the post body component marks markdown images lazy and async', function () {

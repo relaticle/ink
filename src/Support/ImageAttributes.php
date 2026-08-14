@@ -33,18 +33,15 @@ final class ImageAttributes
             self::IMG_TAG,
             function (array $matches): string {
                 $attributes = $matches[1];
-
-                // Attribute *values* can contain anything, including the literal
-                // text `loading=`; blank them out before looking for the names.
-                $names = preg_replace('/"[^"]*"|\'[^\']*\'/', '', $attributes) ?? $attributes;
+                $names = self::attributeNames($attributes);
 
                 $additions = '';
 
-                if (! preg_match('/\bloading\s*=/i', $names)) {
+                if (! self::declares($names, 'loading')) {
                     $additions .= ' loading="lazy"';
                 }
 
-                if (! preg_match('/\bdecoding\s*=/i', $names)) {
+                if (! self::declares($names, 'decoding')) {
                     $additions .= ' decoding="async"';
                 }
 
@@ -54,5 +51,28 @@ final class ImageAttributes
             },
             $html,
         ) ?? $html;
+    }
+
+    /**
+     * Blank out every attribute *value* so only name positions remain.
+     *
+     * Values are opaque whether they are quoted or not: a bare
+     * `src=https://example.test/x.png?loading=true` carries the literal text
+     * `loading=` and would otherwise read as a declared attribute. The `=` is kept
+     * so a genuine `loading=` is still distinguishable from a valueless attribute.
+     */
+    private static function attributeNames(string $attributes): string
+    {
+        return preg_replace('/=\s*("[^"]*"|\'[^\']*\'|[^\s]*)/', '=', $attributes) ?? $attributes;
+    }
+
+    /**
+     * A name only counts when it starts an attribute — anchored on whitespace rather
+     * than `\b`, which also matches mid-name after the `-` or `:` of `data-loading`
+     * or `wire:loading` and would suppress injection for an unrelated attribute.
+     */
+    private static function declares(string $names, string $attribute): bool
+    {
+        return preg_match('/(?:^|\s)'.$attribute.'\s*=/i', $names) === 1;
     }
 }
