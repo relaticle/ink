@@ -76,6 +76,19 @@ test('an svg is rejected even though it looks like a valid image file', function
     expect(Storage::disk('public')->allFiles('ink'))->toBeEmpty();
 });
 
+test('the default max upload size stays safely under a typical post_max_size floor once base64-inflated', function () {
+    // The base64 `data` path is bound by PHP's post_max_size before this app-level
+    // cap ever runs — an oversized payload is rejected by PHP itself with a raw
+    // warning in an HTTP 200, invisible to this suite by nature. This test instead
+    // locks the *default*'s safety margin: base64-inflated (the same ~4/3 estimate
+    // decode() itself uses), it must stay comfortably under a common 5M
+    // post_max_size floor, so the shipped default doesn't reintroduce the gap.
+    $maxBytes = config('ink.uploads.max_bytes');
+    $worstCaseEncodedBytes = ((int) ceil($maxBytes / 3)) * 4 + 4;
+
+    expect($worstCaseEncodedBytes)->toBeLessThan(5 * 1024 * 1024);
+});
+
 test('an image over the configured max size is rejected', function () {
     config()->set('ink.uploads.max_bytes', 10);
 

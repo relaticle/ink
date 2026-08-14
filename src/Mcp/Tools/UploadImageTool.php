@@ -71,7 +71,7 @@ class UploadImageTool extends BlogTool
             return $contents;
         }
 
-        $maxBytes = (int) config('ink.uploads.max_bytes', 5 * 1024 * 1024);
+        $maxBytes = (int) config('ink.uploads.max_bytes', 3 * 1024 * 1024);
 
         if (strlen($contents) > $maxBytes) {
             return Response::error("The image exceeds the maximum upload size of {$maxBytes} bytes.");
@@ -110,7 +110,7 @@ class UploadImageTool extends BlogTool
             return Response::error('Only http and https URLs are supported.');
         }
 
-        $maxBytes = (int) config('ink.uploads.max_bytes', 5 * 1024 * 1024);
+        $maxBytes = (int) config('ink.uploads.max_bytes', 3 * 1024 * 1024);
         $contentLength = $this->contentLengthFor($url);
 
         if ($contentLength !== null && $contentLength > $maxBytes) {
@@ -186,7 +186,7 @@ class UploadImageTool extends BlogTool
 
     private function decode(string $data): string|Response
     {
-        $maxBytes = (int) config('ink.uploads.max_bytes', 5 * 1024 * 1024);
+        $maxBytes = (int) config('ink.uploads.max_bytes', 3 * 1024 * 1024);
 
         // Base64 expands 3 raw bytes into 4 encoded characters. Reject an oversized
         // payload by its encoded length before ever calling base64_decode() on it,

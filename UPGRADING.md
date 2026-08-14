@@ -34,7 +34,7 @@ workaround is no longer necessary; updates now persist on the first call.
 'uploads' => [
     'disk' => 'public',
     'directory' => 'ink',
-    'max_bytes' => 5 * 1024 * 1024,
+    'max_bytes' => 3 * 1024 * 1024,
 ],
 ```
 
@@ -44,6 +44,25 @@ automatically (see the shallow-merge caution in
 the `featured_image` param on `create-post-tool` / `update-post-tool`. Defaults match the
 Filament featured-image field's disk and directory, so panel and MCP uploads land in one
 place; republish the config only if you want different values.
+
+`max_bytes` defaults to 3MB, not the 5MB this feature shipped with during development.
+base64-encoded, `max_bytes` inflates by ~4/3 before it ever reaches this app-level check —
+PHP's own `post_max_size` (typically 5-8M) rejects an oversized request body *before Laravel
+boots*, returning a raw PHP warning in an HTTP 200 instead of a clean JSON-RPC error, which
+no config on this package's side can intercept. 3MB (≈4MB encoded) stays safely under a
+common 5M floor; the `url` upload path is unaffected, since the image bytes never travel
+through the MCP request body at all. See the `uploads.max_bytes` comment in
+`config/ink.php` and [MCP Tools → Images](/essentials/mcp-tools#images) for the full
+guidance if you need a higher cap.
+
+### Rendered post images get `loading="lazy"` and `decoding="async"`
+
+`Post::toHtml()` now post-processes every `<img>` CommonMark emits to add
+`loading="lazy" decoding="async"`, the same technique already used elsewhere for
+below-the-fold article images. This is cache-invalidating: existing posts' cached rendered
+HTML (`post-rendered:{id}`) predates the change and won't pick up the new attributes until
+their content is next saved (which busts the cache) or you clear it manually. Purely
+additive to the rendered markup — no config, no opt-out.
 
 ## To 2.3 from 2.2
 
