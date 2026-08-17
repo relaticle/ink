@@ -14,8 +14,9 @@
 - [Frontend Setup (headless)](https://relaticle.github.io/ink/getting-started/frontend-setup): Build your own blog frontend using the package's Blade components.
 - [Public-routes mode](https://relaticle.github.io/ink/getting-started/public-routes-mode): Get a working blog at /blog without writing controllers — opt in via config flags.
 - [Blade Components](https://relaticle.github.io/ink/essentials/blade-components): All available Blade components for building your blog frontend.
+- [Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views): Render ink's controllers through views your app already owns, and control the preview edit link.
 - [Filament Admin](https://relaticle.github.io/ink/essentials/filament-admin): Managing blog posts, categories, and tags in the Filament admin panel.
-- [MCP Tools](https://relaticle.github.io/ink/essentials/mcp-tools): 13 MCP tools for AI agent blog management.
+- [MCP Tools](https://relaticle.github.io/ink/essentials/mcp-tools): 14 MCP tools for AI agent blog management.
 - [Configuration](https://relaticle.github.io/ink/essentials/configuration): Full configuration reference for Ink.
 - [Tags Taxonomy](https://relaticle.github.io/ink/essentials/tags): Opt-in many-to-many tags taxonomy with admin UI and public archive.
 - [MediaLibrary Integration](https://relaticle.github.io/ink/essentials/media-library): Opt-in featured-image upload via spatie/laravel-medialibrary.

@@ -1,8 +1,8 @@
 # MCP Tools
 
-> 13 MCP tools for AI agent blog management.
+> 14 MCP tools for AI agent blog management.
 
-The package includes 13 Model Context Protocol tools for full blog management via AI agents.
+The package includes 14 Model Context Protocol tools for full blog management via AI agents.
 
 ## Post Tools
 
@@ -90,7 +90,11 @@ The package includes 13 Model Context Protocol tools for full blog management vi
     </td>
     
     <td>
-      Create post (markdown content, auto-slug, auto-sanitize)
+      Create post (markdown content, auto-slug, auto-sanitize, optional <code>
+        featured_image
+      </code>
+      
+      )
     </td>
   </tr>
   
@@ -112,7 +116,11 @@ The package includes 13 Model Context Protocol tools for full blog management vi
     </td>
     
     <td>
-      Update post fields (partial updates)
+      Update post fields (partial updates, including <code>
+        featured_image
+      </code>
+      
+      )
     </td>
   </tr>
   
@@ -179,6 +187,28 @@ The package includes 13 Model Context Protocol tools for full blog management vi
     
     <td>
       Generate 1-hour signed preview URL
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        UploadImageTool
+      </code>
+    </td>
+    
+    <td>
+      Write
+    </td>
+    
+    <td>
+      <code>
+        posts:create
+      </code>
+    </td>
+    
+    <td>
+      Upload an image (from a URL or base64 data) for use as a featured image or embedded in content
     </td>
   </tr>
 </tbody>
@@ -358,9 +388,14 @@ Install `laravel/mcp` (a suggestion, not a hard requirement), then turn the feat
 ],
 ```
 
-That registers `BlogServer` — all 13 tools — at the configured path. Nothing is exposed
+That registers `BlogServer` — all 14 tools — at the configured path. Nothing is exposed
 until you opt in, and enabling the flag without `laravel/mcp` installed simply yields no
 route rather than an error.
+
+Enabling `mcp` also registers the signed `/blog/preview/{post}` route — used by
+`GeneratePreviewUrlTool` and `Post::getUrl()` — even when `features.public_routes` is off,
+so an agent can preview a draft or scheduled post in a browser before the public blog
+launches. The rest of the public routes stay dark.
 
 Prefer to route it yourself? Leave the flag off and register the shipped server:
 
@@ -501,6 +536,26 @@ axes: the Gate decides what an **identity** may do, the token ability what a
     <td>
       <code>
         posts:update
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        UploadImageTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        create
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts:create
       </code>
     </td>
   </tr>
@@ -691,6 +746,82 @@ Ink::resolveAuthorUsing(fn (SystemAdministrator $admin): ?User =>
 Register it in a provider, never in config — a closure in a config file breaks
 `config:cache`. If no author resolves, the tool reports the misconfiguration instead of
 guessing.
+
+## Images
+
+MCP's `tools/call` arguments are plain JSON — there is no binary channel for tool inputs —
+so `UploadImageTool` accepts either a fetchable `url` or base64-encoded `data` (exactly one
+of the two). The image type is detected by sniffing the actual bytes, never trusted from a
+filename or extension; only `jpeg`, `png`, `gif` and `webp` are accepted (no `svg` — it's a
+stored-XSS vector). Size is capped by `ink.uploads.max_bytes` — a HEAD request rejects an
+oversized `url` by its `Content-Length` before the body is downloaded where the server
+advertises one; the body itself is still measured against the cap either way.
+
+<caution>
+
+**SSRF stance (accepted risk):** the `url` fetch is scheme-restricted (`http`/`https` only)
+but has no host allowlist — it can reach any address your app server can reach, including
+internal/private ones (e.g. a cloud metadata endpoint). This is an accepted risk, not an
+oversight: the caller is already an authenticated, admin-scoped identity trusted to publish
+content (`upload-image` shares `create-post-tool`'s `create` Gate ability and `posts:create`
+token ability), not an anonymous or low-privilege one. If your deployment needs a stricter
+boundary — blocking link-local and RFC1918 ranges, for example — enforce it at the network
+layer in front of the app; there is no host-allowlist config in the package itself.
+
+</caution>
+
+```php [config/ink.php]
+'uploads' => [
+    'disk' => 'public',       // matches the Filament featured-image field's disk
+    'directory' => 'ink',     // matches its directory too — panel and MCP uploads share a home
+    'max_bytes' => 3 * 1024 * 1024,
+],
+```
+
+<caution>
+
+**max_bytes and PHP's post_max_size (base64 uploads only):** the base64 `data` path is
+bound by PHP's `post_max_size` — and any webserver/proxy body-size limit — *before Laravel
+ever boots*. base64 inflates the binary size by ~4/3, so an oversized payload is rejected by
+PHP itself: the client gets a raw PHP warning wrapped in an HTTP 200, not a clean JSON-RPC
+error, and no app-level check (this one included) can catch it. The 3MB default (≈4MB
+base64-encoded) stays safely under a common 5-8M `post_max_size` floor; raise both together
+if you need a higher cap, keeping `post_max_size` comfortably above `max_bytes * 4/3`. The
+`url` path has no such ceiling — the image is fetched by this server's own HTTP client, not
+carried in the MCP request body at all — so prefer it for anything larger than a few MB.
+
+</caution>
+
+The tool returns a `path` (pass it as `featured_image` to `create-post-tool` /
+`update-post-tool`), a public `url`, and a ready-to-paste `markdown` snippet for in-content
+images:
+
+```json
+{
+  "path": "ink/01hz...webp",
+  "url": "https://example.test/storage/ink/01hz...webp",
+  "markdown": "![A dashboard screenshot](https://example.test/storage/ink/01hz...webp)"
+}
+```
+
+`featured_image` on `create-post-tool` / `update-post-tool` only accepts a path
+`upload-image` itself produced — it's validated against the uploads disk and directory, so
+an agent can't point it at an arbitrary file. Pass `featured_image: null` on
+`update-post-tool` to clear it. Rendering assumes the public disk with `storage:link` run —
+the six `asset('storage/…')` call sites documented in the README are unchanged by this
+feature. Rendered post images get `loading="lazy"` and `decoding="async"` automatically on
+both render paths (`Post::toHtml()` and `Post::toSafeHtml()`), leaving any attribute the
+author declared by hand alone; there is no automatic resizing or `srcset` generation yet, so an
+oversized source image still costs bandwidth and LCP — keep uploads reasonably sized until a
+resizing pipeline ships.
+
+## Scheduling
+
+A post with `status: "published"` and a future `published_at` is scheduled, not published
+immediately: `Post::published()` is evaluated at query time, so the post appears on the
+public index/show/feed/sitemap the moment the clock passes `published_at`, with no queue or
+command involved. Its signed preview URL (`generate-preview-url-tool`) keeps working right
+up until then.
 
 ## Content format
 

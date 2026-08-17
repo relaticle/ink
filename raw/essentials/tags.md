@@ -84,7 +84,7 @@ When both `features.public_routes` and `features.tags` are on, the route `/blog/
 Route::get('/tag/{slug}', [BlogController::class, 'tag'])->name('blog.tag');
 ```
 
-The shipped view at `resources/views/vendor/blog/pages/tag.blade.php` uses the `<x-ink::post-card>` component. Publish and edit it to customize.
+The shipped view at `resources/views/vendor/ink/pages/tag.blade.php` uses the `<x-ink::post-card>` component. Publish and edit it to customize.
 
 ## Disabling tags after enabling
 

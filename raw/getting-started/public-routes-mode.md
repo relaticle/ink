@@ -112,11 +112,11 @@ The package ships an **opt-in public-routes mode**. Flip a flag in config and yo
     </td>
     
     <td>
-      RSS 2.0 feed (gated by <code>
+      RSS 2.0 feed (route only registered when <code>
         features.feed
       </code>
       
-      )
+       is true)
     </td>
   </tr>
   
@@ -177,24 +177,26 @@ The page views extend the layout you set in `'layout'`. It must define a `@yield
 </html>
 ```
 
-If your layout uses a different slot mechanism (e.g. Blade components with `{{ $slot }}`), publish the page views and adapt them:
-
-```bash [Terminal]
-php artisan vendor:publish --tag=ink-views
-```
+If your layout uses a different slot mechanism (e.g. Blade components with `{{ $slot }}`), point the [`views` config map](/essentials/host-owned-views) at views of your own — see the next section.
 
 ## Customizing pages
 
-The shipped pages live at:
+Point the `views` config map at views your app already owns, per action:
 
-- `resources/views/vendor/blog/pages/index.blade.php`
-- `resources/views/vendor/blog/pages/show.blade.php`
-- `resources/views/vendor/blog/pages/category.blade.php`
-- `resources/views/vendor/blog/pages/preview.blade.php`
-- `resources/views/vendor/blog/pages/tag.blade.php`
-- `resources/views/vendor/blog/pages/feed.blade.php`
+```php [config/ink.php]
+'views' => [
+    'show' => 'blog.show',
+    'preview' => 'blog.preview',
+],
+```
 
-Edit them freely — once published, the package no longer serves its own copies.
+Any key left `null` keeps rendering the package's own `ink::pages.*` view. See
+[Host-Owned Views](/essentials/host-owned-views) for the full data each action passes and
+for wiring the preview "edit this post" link.
+
+Publishing (`php artisan vendor:publish --tag=ink-views`) also works — Laravel resolves
+`resources/views/vendor/ink/**` ahead of the package's own views — but a published file is a
+frozen copy that stops receiving upstream fixes. Prefer the `views` map.
 
 ## Custom prefix
 
@@ -212,7 +214,14 @@ Each feature flag is independent:
 ],
 ```
 
-When a flag is off, requests to that path return **404** (not registered). `Route::has(...)` returns true (the route is defined) but the controller calls `abort_unless($flag, 404)`. That's a deliberate choice so route ordering stays predictable and you can probe the route name without crashing.
+When a flag is off, requests to that path return **404**, but not always for the same reason:
+
+- `features.feed` off — the `blog.feed` route is never registered. `Route::has('blog.feed')` returns `false`.
+- `features.tags` off — the `blog.tag` route is still registered (so `route('blog.tag', ...)` keeps resolving without throwing), but `tag()` calls `abort_unless($flag, 404)` at request time. `Route::has('blog.tag')` returns `true`.
+
+The tag route stays registered unconditionally so that `route('blog.tag', ...)` never throws
+a `RouteNotFoundException`, even with the feature off — only the controller enforces the
+flag.
 
 ## Mode comparison
 

@@ -8,6 +8,15 @@ Publish the config file:
 php artisan vendor:publish --tag=ink-config
 ```
 
+<caution>
+
+Once published, new **top-level** keys the package adds in later releases (like `views` and
+`middleware`) merge into your config automatically. New keys added *inside* an existing
+array such as `features` do not — see [the shallow-merge trap](/essentials/host-owned-views#the-shallow-config-merge-trap)
+for why, and re-check your published file after every upgrade.
+
+</caution>
+
 ## Full reference
 
 ```php [config/ink.php]
@@ -30,6 +39,31 @@ return [
     | mode.
     */
     'layout' => 'layouts.app',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Host-owned views
+    |--------------------------------------------------------------------------
+    | Render each public-routes action through a view your app owns instead of
+    | the package's own ink::pages.*. A null (or empty string) falls back to
+    | the matching ink::pages.* view. See: essentials/host-owned-views
+    */
+    'views' => [
+        'index' => null,
+        'show' => null,
+        'category' => null,
+        'tag' => null,
+        'preview' => null,
+        'feed' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Route middleware
+    |--------------------------------------------------------------------------
+    | Applied to the whole blog route group.
+    */
+    'middleware' => ['web'],
 
     /*
     |--------------------------------------------------------------------------
@@ -159,7 +193,13 @@ The generator is route-aware — it only adds URLs for routes that exist in your
 
 ## Customizing views
 
-Publish all Blade page + component views:
+For the six public-routes pages (`index`, `show`, `category`, `tag`, `preview`, `feed`),
+point the `views` config map at views your app already owns — see
+[Host-Owned Views](/essentials/host-owned-views). It avoids publishing a copy of package
+markup that stops receiving upstream fixes.
+
+For the Blade components used in headless mode (`post-card`, `post-header`, …), publishing
+is the only route:
 
 ```bash [Terminal]
 php artisan vendor:publish --tag=ink-views
@@ -167,8 +207,8 @@ php artisan vendor:publish --tag=ink-views
 
 Published files go to:
 
-- `resources/views/vendor/blog/components/` — the publishable components used in headless mode
-- `resources/views/vendor/blog/pages/` — the page views used in public-routes mode
+- `resources/views/vendor/ink/components/` — the publishable components used in headless mode
+- `resources/views/vendor/ink/pages/` — the page views used in public-routes mode (prefer the `views` config map instead — see above)
 
 Edit them to match your design system. Once published, the package no longer serves its own copies of those files.
 

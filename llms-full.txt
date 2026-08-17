@@ -65,7 +65,7 @@ What's included
   MCP tools for AI
   
   #description
-  13 Model Context Protocol tools so AI agents can write and publish posts. Sanctum-gated and markdown-sanitized.
+  14 Model Context Protocol tools so AI agents can write, illustrate, and publish posts. Sanctum-gated and markdown-sanitized.
   :::
 
   :::u-page-feature
@@ -409,7 +409,55 @@ Useful in your views:
 $post->readingTime();       // int — minutes
 $post->relatedPosts(3);     // Builder of same-category, published, !=$this->id
 $post->getUrl();            // route('blog.show', $post->slug) if registered, else fallback
+$post->tableOfContents();   // array<string, string> — fragment => heading text, from <h2>
+$post->renderedContent();   // string — rendered through your app's `markdown` config
+$post->toSafeHtml();        // string — rendered with ink's hardened options
 ```
+
+### The two render paths
+
+Both renderers add `loading="lazy" decoding="async"` to every image (leaving an attribute
+the author declared by hand alone), and both take markdown in and give HTML out — but they
+are **not** equivalent, and the choice is a security decision:
+
+|                                                  | `toSafeHtml()` | `toHtml()` / `renderedContent()` / `<x-ink::post-body>`                                    |
+| ------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------ |
+| Raw HTML in content                              | stripped       | governed by your `markdown.commonmark_options.html_input` (CommonMark defaults to `allow`) |
+| `javascript:` links                              | disarmed       | governed by `allow_unsafe_links` (defaults to `true`)                                      |
+| GFM tables, strikethrough, task lists, autolinks | yes            | only if you add the extension to `markdown.extensions`                                     |
+| Heading permalink anchors, code highlighting     | no             | per your `markdown` config                                                                 |
+| `tableOfContents()` compatible                   | no             | yes                                                                                        |
+| Cached                                           | no             | `post-rendered:{id}`, forever                                                              |
+
+`<x-ink::post-body>` and everything else built on `toHtml()` deliberately defer to your
+app's spatie/laravel-markdown configuration — that's the documented extension point, and
+it's what makes anchors, code highlighting and your own CommonMark extensions work. The
+flip side is that it also defers on **sanitisation**: with a stock `config/markdown.php`,
+raw HTML in a post body is rendered, not stripped. If anyone who can author a post is not
+fully trusted, either pin `html_input` and `allow_unsafe_links` in
+`markdown.commonmark_options`, or render with `$post->toSafeHtml()` instead — which is what
+the package's own `ink::pages.show` / `ink::pages.preview` views do.
+
+`tableOfContents(string $tag = 'h2')` parses the **rendered** post (`$post->toHtml()`), not
+the markdown source, so a heading's full text is captured even when it contains inline
+markup (bold, code, links) — `## Using \`artisan\` commands`becomes`Using artisan
+commands`, not `Using\` — and HTML entities decode exactly once. Each key is the fragment
+used by the heading's permalink anchor; each value is the heading's text:
+
+```blade [resources/views/blog/show.blade.php]
+@if ($toc = $post->tableOfContents())
+    <nav aria-label="Table of contents">
+        <ul>
+            @foreach ($toc as $fragment => $heading)
+                <li><a href="#{{ $fragment }}">{{ $heading }}</a></li>
+            @endforeach
+        </ul>
+    </nav>
+@endif
+```
+
+Pass `tag: 'h3'` (or any heading level your content uses) to build the TOC from a different
+level. A post with no matching headings returns an empty array.
 
 ## Expected route names
 
@@ -433,14 +481,14 @@ If writing all this gets old, flip the flag in config and delete your controller
 
 The package ships an **opt-in public-routes mode**. Flip a flag in config and you get:
 
-| Route                       | Name            | Notes                                                   |
-| --------------------------- | --------------- | ------------------------------------------------------- |
-| `GET /blog`                 | `blog.index`    | Paginated post listing                                  |
-| `GET /blog/{slug}`          | `blog.show`     | Single post (only published)                            |
-| `GET /blog/category/{slug}` | `blog.category` | Category archive (paginated)                            |
-| `GET /blog/preview/{post}`  | `blog.preview`  | Signed-only draft preview, with `noindex,nofollow` meta |
-| `GET /blog/feed`            | `blog.feed`     | RSS 2.0 feed (gated by `features.feed`)                 |
-| `GET /blog/tag/{slug}`      | `blog.tag`      | Tag archive (gated by `features.tags`)                  |
+| Route                       | Name            | Notes                                                             |
+| --------------------------- | --------------- | ----------------------------------------------------------------- |
+| `GET /blog`                 | `blog.index`    | Paginated post listing                                            |
+| `GET /blog/{slug}`          | `blog.show`     | Single post (only published)                                      |
+| `GET /blog/category/{slug}` | `blog.category` | Category archive (paginated)                                      |
+| `GET /blog/preview/{post}`  | `blog.preview`  | Signed-only draft preview, with `noindex,nofollow` meta           |
+| `GET /blog/feed`            | `blog.feed`     | RSS 2.0 feed (route only registered when `features.feed` is true) |
+| `GET /blog/tag/{slug}`      | `blog.tag`      | Tag archive (gated by `features.tags`)                            |
 
 ## Enable it
 
@@ -475,24 +523,26 @@ The page views extend the layout you set in `'layout'`. It must define a `@yield
 </html>
 ```
 
-If your layout uses a different slot mechanism (e.g. Blade components with `{{ $slot }}`), publish the page views and adapt them:
-
-```bash [Terminal]
-php artisan vendor:publish --tag=ink-views
-```
+If your layout uses a different slot mechanism (e.g. Blade components with `{{ $slot }}`), point the [`views` config map](https://relaticle.github.io/ink/essentials/host-owned-views) at views of your own — see the next section.
 
 ## Customizing pages
 
-The shipped pages live at:
+Point the `views` config map at views your app already owns, per action:
 
-- `resources/views/vendor/blog/pages/index.blade.php`
-- `resources/views/vendor/blog/pages/show.blade.php`
-- `resources/views/vendor/blog/pages/category.blade.php`
-- `resources/views/vendor/blog/pages/preview.blade.php`
-- `resources/views/vendor/blog/pages/tag.blade.php`
-- `resources/views/vendor/blog/pages/feed.blade.php`
+```php [config/ink.php]
+'views' => [
+    'show' => 'blog.show',
+    'preview' => 'blog.preview',
+],
+```
 
-Edit them freely — once published, the package no longer serves its own copies.
+Any key left `null` keeps rendering the package's own `ink::pages.*` view. See
+[Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views) for the full data each action passes and
+for wiring the preview "edit this post" link.
+
+Publishing (`php artisan vendor:publish --tag=ink-views`) also works — Laravel resolves
+`resources/views/vendor/ink/**` ahead of the package's own views — but a published file is a
+frozen copy that stops receiving upstream fixes. Prefer the `views` map.
 
 ## Custom prefix
 
@@ -510,7 +560,14 @@ Each feature flag is independent:
 ],
 ```
 
-When a flag is off, requests to that path return **404** (not registered). `Route::has(...)` returns true (the route is defined) but the controller calls `abort_unless($flag, 404)`. That's a deliberate choice so route ordering stays predictable and you can probe the route name without crashing.
+When a flag is off, requests to that path return **404**, but not always for the same reason:
+
+- `features.feed` off — the `blog.feed` route is never registered. `Route::has('blog.feed')` returns `false`.
+- `features.tags` off — the `blog.tag` route is still registered (so `route('blog.tag', ...)` keeps resolving without throwing), but `tag()` calls `abort_unless($flag, 404)` at request time. `Route::has('blog.tag')` returns `true`.
+
+The tag route stays registered unconditionally so that `route('blog.tag', ...)` never throws
+a `RouteNotFoundException`, even with the feature off — only the controller enforces the
+flag.
 
 ## Mode comparison
 
@@ -638,6 +695,134 @@ The view emits `aria-label="Blog pagination"` on the nav, `aria-current="page"` 
 Drop `<livewire:blog::search />` anywhere. It reads `?q=` from the URL, debounces 400ms, and renders up to 20 matching posts. Empty queries show no results until the user types.
 
 
+# Host-Owned Views
+
+Public-routes mode ships a `BlogController` with all six public actions. By default they
+render the package's own `ink::pages.*` views. Point each action at a view your app already
+owns instead — same controller, same SEO and query behavior, your markup.
+
+## The `views` config map
+
+```php [config/ink.php]
+'views' => [
+    'index' => null,
+    'show' => null,
+    'category' => null,
+    'tag' => null,
+    'preview' => null,
+    'feed' => null,
+],
+```
+
+Every key defaults to `null`. A `null` or empty-string value falls back to the matching
+`ink::pages.*` view, so an existing install that never touches this key renders exactly as
+before. Set a key to any view name your app can resolve — a Blade view, a package view, a
+namespaced view from another provider:
+
+```php [config/ink.php]
+'views' => [
+    'index' => 'blog.index',
+    'show' => 'blog.show',
+    'preview' => 'blog.preview',
+],
+```
+
+Resolution happens once per request, through a private `viewFor()` helper on
+`BlogController` — every action calls it instead of hardcoding `ink::pages.*`.
+
+## What each view receives
+
+| Action     | View data                         | Notes                                                                                                                                                               |
+| ---------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index`    | `posts`                           | —                                                                                                                                                                   |
+| `show`     | `post`, `relatedPosts`            | `post->tags` is eager-loaded                                                                                                                                        |
+| `category` | `category`, `posts`               | —                                                                                                                                                                   |
+| `tag`      | `tag`, `posts`                    | —                                                                                                                                                                   |
+| `preview`  | `post`, `relatedPosts`, `editUrl` | `post->tags` is eager-loaded; `editUrl` is `null` unless a host registers [`Ink::resolvePreviewEditUrlUsing()`](https://relaticle.github.io/ink/#preview-edit-link) |
+| `feed`     | `posts`                           | —                                                                                                                                                                   |
+
+`relatedPosts` and `editUrl` on `preview` are new — earlier versions passed only `post`.
+
+::caution
+Publishing views (`php artisan vendor:publish --tag=ink-views`) is not the recommended way
+to customize the six page views above. Laravel resolves `resources/views/vendor/ink/**`
+ahead of `ink::**` automatically, so publishing *works* — but the file it creates is a
+frozen copy of package markup from the day you published it. It will not receive upstream
+fixes, and nothing will tell you when it's drifted. Pointing `views` at your own view avoids
+both problems: you own the markup from the start, and ink's own pages keep improving
+underneath you without needing a merge.
+
+Publishing is still how you customize the [Blade components](https://relaticle.github.io/ink/essentials/blade-components)
+(`post-card`, `post-header`, …) — those aren't covered by the `views` map.
+::
+
+## Preview edit link
+
+`Ink::resolvePreviewEditUrlUsing()` registers how to build the "edit this post" link shown
+on the preview page:
+
+```php
+public static function resolvePreviewEditUrlUsing(?Closure $callback): void
+```
+
+With nothing registered, `editUrl` is always `null` and no edit link renders. Register a
+callback in a service provider's `boot()` — never in config, since a closure in a config
+file breaks `config:cache`:
+
+```php
+use Relaticle\Ink\Ink;
+use Relaticle\Ink\Models\Post;
+
+Ink::resolvePreviewEditUrlUsing(fn (Post $post): ?string =>
+    auth('sysadmin')->check()
+        ? PostResource::getUrl('edit', ['record' => $post], panel: 'sysadmin')
+        : null);
+```
+
+The callback receives the `Post` and must return a string or `null`. A `null`, or any
+non-string return, is treated as "no link" — a misconfigured *return value* never throws.
+If your callback itself throws, that exception is not caught and will surface as a 500 on
+the preview page; ink only guards the return value, not the callback's own execution.
+Which panel and which guard own the blog admin is a host decision; ink does not guess at
+it.
+
+`<x-ink::preview-banner :post="$post" :editUrl="$editUrl" />` is the shipped component that
+renders this link.
+
+## Route middleware
+
+```php [config/ink.php]
+'middleware' => ['web'],
+```
+
+Applied to the entire blog route group. Add your own alongside it — for example a host that
+serves markdown to AI crawlers:
+
+```php [config/ink.php]
+'middleware' => ['web', ProvideMarkdownResponse::class],
+```
+
+## The shallow config-merge trap
+
+::caution
+If your app has already run `php artisan vendor:publish --tag=ink-config`, be aware that
+Laravel's `mergeConfigFrom` — which is how the package's config defaults reach your
+`config/ink.php` — is a **shallow** merge. It's `array_merge($packageDefaults, $yourConfig)`:
+for any top-level key present in both arrays, your value wins **wholesale**, array or not.
+
+New top-level keys like `views` and `middleware` merge in fine — your published file simply
+doesn't have them, so the package default fills the gap. But a key added *inside* an
+existing array, such as a new flag under `features`, will not reach you: your published
+`features` array replaces the package's entirely, new subkey and all. This isn't
+hypothetical — it already bit a host of this package: `ink.features.mcp` silently resolved
+to `null` after they'd published `config/ink.php` before that flag existed.
+
+After upgrading, diff your published `config/ink.php` against the package's
+[`config/ink.php`](https://github.com/relaticle/ink/blob/main/config/ink.php){rel="nofollow"} and add any
+new subkeys by hand.
+::
+
+
 # Filament Admin
 
 ## Posts Resource
@@ -714,19 +899,20 @@ The plugin auto-discovers `PostResource`, `CategoryResource`, and `TagResource` 
 
 # MCP Tools
 
-The package includes 13 Model Context Protocol tools for full blog management via AI agents.
+The package includes 14 Model Context Protocol tools for full blog management via AI agents.
 
 ## Post Tools
 
-| Tool                     | Type       | Ability        | Description                                                    |
-| ------------------------ | ---------- | -------------- | -------------------------------------------------------------- |
-| `ListPostsTool`          | Read-only  | `posts:read`   | List posts with filters (status, category, search, pagination) |
-| `GetPostTool`            | Read-only  | `posts:read`   | Get post by ID or slug                                         |
-| `CreatePostTool`         | Write      | `posts:create` | Create post (markdown content, auto-slug, auto-sanitize)       |
-| `UpdatePostTool`         | Idempotent | `posts:update` | Update post fields (partial updates)                           |
-| `DeletePostTool`         | Write      | `posts:delete` | Soft delete a post                                             |
-| `RestorePostTool`        | Write      | `posts:delete` | Restore a soft-deleted post                                    |
-| `GeneratePreviewUrlTool` | Read-only  | `posts:read`   | Generate 1-hour signed preview URL                             |
+| Tool                     | Type       | Ability        | Description                                                                                    |
+| ------------------------ | ---------- | -------------- | ---------------------------------------------------------------------------------------------- |
+| `ListPostsTool`          | Read-only  | `posts:read`   | List posts with filters (status, category, search, pagination)                                 |
+| `GetPostTool`            | Read-only  | `posts:read`   | Get post by ID or slug                                                                         |
+| `CreatePostTool`         | Write      | `posts:create` | Create post (markdown content, auto-slug, auto-sanitize, optional `featured_image`)            |
+| `UpdatePostTool`         | Idempotent | `posts:update` | Update post fields (partial updates, including `featured_image`)                               |
+| `DeletePostTool`         | Write      | `posts:delete` | Soft delete a post                                                                             |
+| `RestorePostTool`        | Write      | `posts:delete` | Restore a soft-deleted post                                                                    |
+| `GeneratePreviewUrlTool` | Read-only  | `posts:read`   | Generate 1-hour signed preview URL                                                             |
+| `UploadImageTool`        | Write      | `posts:create` | Upload an image (from a URL or base64 data) for use as a featured image or embedded in content |
 
 ## Category Tools
 
@@ -755,9 +941,14 @@ Install `laravel/mcp` (a suggestion, not a hard requirement), then turn the feat
 ],
 ```
 
-That registers `BlogServer` — all 13 tools — at the configured path. Nothing is exposed
+That registers `BlogServer` — all 14 tools — at the configured path. Nothing is exposed
 until you opt in, and enabling the flag without `laravel/mcp` installed simply yields no
 route rather than an error.
+
+Enabling `mcp` also registers the signed `/blog/preview/{post}` route — used by
+`GeneratePreviewUrlTool` and `Post::getUrl()` — even when `features.public_routes` is off,
+so an agent can preview a draft or scheduled post in a browser before the public blog
+launches. The rest of the public routes stay dark.
 
 Prefer to route it yourself? Leave the flag off and register the shipped server:
 
@@ -791,6 +982,7 @@ axes: the Gate decides what an **identity** may do, the token ability what a
 | `GeneratePreviewUrlTool` | `view`       | `posts:read`        |
 | `CreatePostTool`         | `create`     | `posts:create`      |
 | `UpdatePostTool`         | `update`     | `posts:update`      |
+| `UploadImageTool`        | `create`     | `posts:create`      |
 | `DeletePostTool`         | `delete`     | `posts:delete`      |
 | `RestorePostTool`        | `restore`    | `posts:delete`      |
 | `ListCategoriesTool`     | `viewAny`    | `categories:read`   |
@@ -825,6 +1017,138 @@ Register it in a provider, never in config — a closure in a config file breaks
 `config:cache`. If no author resolves, the tool reports the misconfiguration instead of
 guessing.
 
+## Images
+
+MCP's `tools/call` arguments are plain JSON — there is no binary channel for tool inputs —
+so `UploadImageTool` accepts either a fetchable `url` or base64-encoded `data` (exactly one
+of the two). The image type is detected by sniffing the actual bytes, never trusted from a
+filename or extension; only `jpeg`, `png`, `gif` and `webp` are accepted (no `svg` — it's a
+stored-XSS vector). Size is capped by `ink.uploads.max_bytes` — a HEAD request rejects an
+oversized `url` by its `Content-Length` before the body is downloaded where the server
+advertises one; the body itself is still measured against the cap either way.
+
+::caution
+**SSRF stance (accepted risk):**
+
+ the 
+
+`url`
+
+ fetch is scheme-restricted (
+
+`http`
+
+/
+
+`https`
+
+ only)
+but has no host allowlist — it can reach any address your app server can reach, including
+internal/private ones (e.g. a cloud metadata endpoint). This is an accepted risk, not an
+oversight: the caller is already an authenticated, admin-scoped identity trusted to publish
+content (
+
+`upload-image`
+
+ shares 
+
+`create-post-tool`
+
+'s 
+
+`create`
+
+ Gate ability and 
+
+`posts:create`
+
+
+token ability), not an anonymous or low-privilege one. If your deployment needs a stricter
+boundary — blocking link-local and RFC1918 ranges, for example — enforce it at the network
+layer in front of the app; there is no host-allowlist config in the package itself.
+::
+
+```php [config/ink.php]
+'uploads' => [
+    'disk' => 'public',       // matches the Filament featured-image field's disk
+    'directory' => 'ink',     // matches its directory too — panel and MCP uploads share a home
+    'max_bytes' => 3 * 1024 * 1024,
+],
+```
+
+::caution
+**`max_bytes` and PHP's `post_max_size` (base64 uploads only):**
+
+ the base64 
+
+`data`
+
+ path is
+bound by PHP's 
+
+`post_max_size`
+
+ — and any webserver/proxy body-size limit — 
+
+*before Laravel
+ever boots*
+
+. base64 inflates the binary size by ~4/3, so an oversized payload is rejected by
+PHP itself: the client gets a raw PHP warning wrapped in an HTTP 200, not a clean JSON-RPC
+error, and no app-level check (this one included) can catch it. The 3MB default (≈4MB
+base64-encoded) stays safely under a common 5-8M 
+
+`post_max_size`
+
+ floor; raise both together
+if you need a higher cap, keeping 
+
+`post_max_size`
+
+ comfortably above 
+
+`max_bytes * 4/3`
+
+. The
+
+
+`url`
+
+ path has no such ceiling — the image is fetched by this server's own HTTP client, not
+carried in the MCP request body at all — so prefer it for anything larger than a few MB.
+::
+
+The tool returns a `path` (pass it as `featured_image` to `create-post-tool` /
+`update-post-tool`), a public `url`, and a ready-to-paste `markdown` snippet for in-content
+images:
+
+```json
+{
+  "path": "ink/01hz...webp",
+  "url": "https://example.test/storage/ink/01hz...webp",
+  "markdown": "![A dashboard screenshot](https://example.test/storage/ink/01hz...webp)"
+}
+```
+
+`featured_image` on `create-post-tool` / `update-post-tool` only accepts a path
+`upload-image` itself produced — it's validated against the uploads disk and directory, so
+an agent can't point it at an arbitrary file. Pass `featured_image: null` on
+`update-post-tool` to clear it. Rendering assumes the public disk with `storage:link` run —
+the six `asset('storage/…')` call sites documented in the README are unchanged by this
+feature. Rendered post images get `loading="lazy"` and `decoding="async"` automatically on
+both render paths (`Post::toHtml()` and `Post::toSafeHtml()`), leaving any attribute the
+author declared by hand alone; there is no automatic resizing or `srcset` generation yet, so an
+oversized source image still costs bandwidth and LCP — keep uploads reasonably sized until a
+resizing pipeline ships.
+
+## Scheduling
+
+A post with `status: "published"` and a future `published_at` is scheduled, not published
+immediately: `Post::published()` is evaluated at query time, so the post appears on the
+public index/show/feed/sitemap the moment the clock passes `published_at`, with no queue or
+command involved. Its signed preview URL (`generate-preview-url-tool`) keeps working right
+up until then.
+
 ## Content format
 
 The tools store the **markdown** you send, exactly as the Filament editor does; they do not
@@ -857,6 +1181,37 @@ Publish the config file:
 php artisan vendor:publish --tag=ink-config
 ```
 
+::caution
+Once published, new 
+
+**top-level**
+
+ keys the package adds in later releases (like 
+
+`views`
+
+ and
+
+
+`middleware`
+
+) merge into your config automatically. New keys added 
+
+*inside*
+
+ an existing
+array such as 
+
+`features`
+
+ do not — see 
+
+[the shallow-merge trap](https://relaticle.github.io/ink/essentials/host-owned-views#the-shallow-config-merge-trap)
+
+
+for why, and re-check your published file after every upgrade.
+::
+
 ## Full reference
 
 ```php [config/ink.php]
@@ -879,6 +1234,31 @@ return [
     | mode.
     */
     'layout' => 'layouts.app',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Host-owned views
+    |--------------------------------------------------------------------------
+    | Render each public-routes action through a view your app owns instead of
+    | the package's own ink::pages.*. A null (or empty string) falls back to
+    | the matching ink::pages.* view. See: essentials/host-owned-views
+    */
+    'views' => [
+        'index' => null,
+        'show' => null,
+        'category' => null,
+        'tag' => null,
+        'preview' => null,
+        'feed' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Route middleware
+    |--------------------------------------------------------------------------
+    | Applied to the whole blog route group.
+    */
+    'middleware' => ['web'],
 
     /*
     |--------------------------------------------------------------------------
@@ -1008,7 +1388,13 @@ The generator is route-aware — it only adds URLs for routes that exist in your
 
 ## Customizing views
 
-Publish all Blade page + component views:
+For the six public-routes pages (`index`, `show`, `category`, `tag`, `preview`, `feed`),
+point the `views` config map at views your app already owns — see
+[Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views). It avoids publishing a copy of package
+markup that stops receiving upstream fixes.
+
+For the Blade components used in headless mode (`post-card`, `post-header`, …), publishing
+is the only route:
 
 ```bash [Terminal]
 php artisan vendor:publish --tag=ink-views
@@ -1016,8 +1402,8 @@ php artisan vendor:publish --tag=ink-views
 
 Published files go to:
 
-- `resources/views/vendor/blog/components/` — the publishable components used in headless mode
-- `resources/views/vendor/blog/pages/` — the page views used in public-routes mode
+- `resources/views/vendor/ink/components/` — the publishable components used in headless mode
+- `resources/views/vendor/ink/pages/` — the page views used in public-routes mode (prefer the `views` config map instead — see above)
 
 Edit them to match your design system. Once published, the package no longer serves its own copies of those files.
 
@@ -1114,7 +1500,7 @@ When both `features.public_routes` and `features.tags` are on, the route `/blog/
 Route::get('/tag/{slug}', [BlogController::class, 'tag'])->name('blog.tag');
 ```
 
-The shipped view at `resources/views/vendor/blog/pages/tag.blade.php` uses the `<x-ink::post-card>` component. Publish and edit it to customize.
+The shipped view at `resources/views/vendor/ink/pages/tag.blade.php` uses the `<x-ink::post-card>` component. Publish and edit it to customize.
 
 ## Disabling tags after enabling
 
