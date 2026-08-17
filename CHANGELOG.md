@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] - 2026-08-14
+
+### Added
+- `UploadImageTool` MCP tool (`upload-image`): uploads an image from a fetchable URL or base64 data, sniffs the actual bytes to whitelist `jpeg`/`png`/`gif`/`webp` (no `svg`), enforces a configurable max size, and returns a storage path, public URL, and ready-to-paste markdown snippet. Shares the `create` Gate ability and `posts:create` token ability with `CreatePostTool`. The `url` fetch is scheme-restricted (`http`/`https` only) with no host allowlist — an accepted risk given the caller is already an authenticated, admin-scoped identity; see the SSRF note in [MCP Tools](https://relaticle.github.io/ink/essentials/mcp-tools#images).
+- `featured_image` param on `CreatePostTool` and `UpdatePostTool`, accepting a path returned by `upload-image`. Validated against the configured uploads disk and directory to reject path injection (including traversal-shaped values); `null` on update clears it.
+- New top-level `uploads` config key (`disk`, `directory`, `max_bytes`), defaulting to the same `public` disk / `ink` directory the Filament featured-image field already uses. `max_bytes` defaults to 3MB (≈4MB base64-encoded), chosen to stay safely under a common 5-8M PHP `post_max_size` floor — see the coordination note below and the comment in `config/ink.php`.
+- `blog.preview` is now also registered when `features.mcp` is enabled (previously only `features.public_routes`), so `GeneratePreviewUrlTool` works pre-launch, with the rest of the public blog dark. See [UPGRADING.md](UPGRADING.md) for the `route:cache` implication.
+- Rendered post images now automatically get `loading="lazy" decoding="async"` — on both render paths: `Post::toHtml()` (behind `<x-ink::post-body>`, the schema extractors and `tableOfContents()`) and the new `Post::toSafeHtml()` used by the shipped `ink::pages.show` / `ink::pages.preview` views. An attribute the author already declared wins: a hand-written `<img loading="eager">` in post markdown keeps `eager` and gains no duplicate. No config, no opt-out.
+- `Post::toSafeHtml()`: renders post markdown with ink's own hardened options (`html_input => strip`, `allow_unsafe_links => false`) rather than the host's `markdown` config. The two shipped page views used to inline this option set in Blade; it now lives on the model, so both views share one renderer. Use it in a host-owned view when you want the package's sanitising defaults; use `$post->renderedContent()` / `<x-ink::post-body>` when you want your own `markdown` config to govern. See [Frontend Setup → Helpers on the Post model](https://relaticle.github.io/ink/getting-started/frontend-setup#helpers-on-the-post-model) for the difference — the two renderers are **not** equivalent.
+
+### Fixed
+- `UpdatePostTool` silently no-oped on every call: validated data was read from a variable never assigned in `run()`'s scope, so `Post::update([])` ran with nothing dirty while the tool reported a normal-looking (but stale) success payload. Introduced in 2.2.0's `resolveRecord()`/`run()` refactor.
+- `UpdateCategoryTool` had the same scope bug, but surfaced as a masked "An internal server error occurred." instead of a no-op, since `blog_categories.name` is `NOT NULL`.
+- `GeneratePreviewUrlTool` threw an uncaught `RouteNotFoundException` (masked as the same generic internal error) when `blog.preview` wasn't registered. It now guards with `Route::has()` and returns an actionable error; combined with the routing fix above, this should not trip in a correctly booted app.
+- `featured_image`'s uploads-directory confinement was bypassable: it only checked that the value started with the directory prefix as a string, but Flysystem's local disk normalizes `..` segments by default, so a value like `ink/x/../../other/secret.png` passed the prefix check yet resolved to a file outside the uploads directory (and some traversal shapes threw an uncaught `PathTraversalDetected`, masked as a generic internal error, instead of a clean validation failure). The path is now rejected outright if it contains any traversal segment, and the disk existence check is wrapped to convert any remaining Flysystem exception into a clean validation error.
+- A non-string `featured_image` (a JSON number, boolean, or array — laravel/mcp does not validate `tools/call` arguments against the tool's schema before invoking it) threw an uncaught `TypeError` in the same confinement check, masked the same way. It's now rejected with a clean validation error.
+- `UploadImageTool`'s size cap was enforced only after the full body was already in memory (a fully base64-decoded payload, or a fully downloaded URL response), defeating the point of a cap against a large/malicious payload. Base64 payloads are now rejected by their encoded length before `base64_decode()` runs; URL fetches now send a `HEAD` request first and reject an oversized `Content-Length` before the body is ever downloaded, and the body itself is now read in bounded chunks via a streamed request rather than buffered whole, so a server that omits or understates `Content-Length` still can't force a full download past the cap.
+
+### Coordination note: `post_max_size`
+
+The base64 `data` upload path is bound by PHP's `post_max_size` (and any webserver/proxy
+body-size limit) *before Laravel ever boots* — base64 inflates the binary size by ~4/3, and
+an oversized request body is rejected by PHP itself, returning a raw PHP warning wrapped in
+an HTTP 200 instead of a clean JSON-RPC error. No app-level config, including `max_bytes`,
+can intercept this. `ink.uploads.max_bytes` defaults to 3MB for exactly this reason; the
+`url` upload path is unaffected, since the image bytes never travel through the MCP request
+body. See [MCP Tools → Images](https://relaticle.github.io/ink/essentials/mcp-tools#images).
+
 ## [2.3.0] - 2026-08-06
 
 ### Added

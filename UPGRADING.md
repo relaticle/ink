@@ -1,5 +1,99 @@
 # Upgrading
 
+## To 2.4 from 2.3
+
+### `blog.preview` is now registered when `features.mcp` is enabled, not only `features.public_routes`
+
+`GeneratePreviewUrlTool` generated a URL for `blog.preview` even when that route wasn't
+registered (public routes off, mcp on) — an uncaught `RouteNotFoundException` masked as `An
+internal server error occurred.`. The signed `/blog/preview/{post}` route now registers
+whenever **either** `features.public_routes` **or** `features.mcp` is `true`; the rest of
+the public routes (`blog.index`, `blog.show`, `blog.category`, `blog.feed`) are unaffected
+and still require `features.public_routes`.
+
+If you run `route:cache`, enabling `features.mcp` (or `features.public_routes`) now also
+changes route registration — `php artisan route:clear` (or a fresh `route:cache`) after
+flipping either flag, matching the existing `blog.feed` / `features.feed` behavior from 2.3.
+
+The tool itself still guards with `Route::has('blog.preview')` and returns an actionable
+error instead of throwing if the route is somehow absent — this should not trip in a
+correctly booted app.
+
+### `UpdatePostTool` and `UpdateCategoryTool` now actually persist changes
+
+Both tools had a scope bug since 2.2.0: validated data was read from an undefined variable
+in `run()`, so every update silently no-oped (post) or threw a masked DB error (category,
+whose `name` column is `NOT NULL`). If you were working around this — retrying updates,
+falling back to the Filament admin, or polling `updated_at` to detect success — that
+workaround is no longer necessary; updates now persist on the first call.
+
+### New `uploads` config key
+
+```php
+// config/ink.php
+'uploads' => [
+    'disk' => 'public',
+    'directory' => 'ink',
+    'max_bytes' => 3 * 1024 * 1024,
+],
+```
+
+Purely additive — top-level, so it merges into an already-published `config/ink.php`
+automatically (see the shallow-merge caution in
+[Configuration](/essentials/configuration)). Used by the new `upload-image` MCP tool and by
+the `featured_image` param on `create-post-tool` / `update-post-tool`. Defaults match the
+Filament featured-image field's disk and directory, so panel and MCP uploads land in one
+place; republish the config only if you want different values.
+
+`max_bytes` defaults to 3MB, not the 5MB this feature shipped with during development.
+base64-encoded, `max_bytes` inflates by ~4/3 before it ever reaches this app-level check —
+PHP's own `post_max_size` (typically 5-8M) rejects an oversized request body *before Laravel
+boots*, returning a raw PHP warning in an HTTP 200 instead of a clean JSON-RPC error, which
+no config on this package's side can intercept. 3MB (≈4MB encoded) stays safely under a
+common 5M floor; the `url` upload path is unaffected, since the image bytes never travel
+through the MCP request body at all. See the `uploads.max_bytes` comment in
+`config/ink.php` and [MCP Tools → Images](/essentials/mcp-tools#images) for the full
+guidance if you need a higher cap.
+
+### Rendered post images get `loading="lazy"` and `decoding="async"`
+
+Both render paths now post-process every `<img>` in the rendered HTML to add
+`loading="lazy" decoding="async"`: `Post::toHtml()` (behind `<x-ink::post-body>`) and the
+new `Post::toSafeHtml()` behind the shipped `ink::pages.show` / `ink::pages.preview` views.
+An attribute the author already declared is left alone — `<img loading="eager">` written as
+raw HTML in post markdown keeps `eager` and gains only `decoding`, since emitting a second
+`loading` would be invalid HTML that browsers resolve in favour of the *first* occurrence.
+
+For `toHtml()` this is cache-invalidating: existing posts' cached rendered HTML
+(`post-rendered:{id}`) predates the change and won't pick up the new attributes until their
+content is next saved (which busts the cache) or you clear it manually. `toSafeHtml()` is
+not cached, so the shipped pages pick the attributes up immediately. Purely additive to the
+rendered markup — no config, no opt-out.
+
+### `Post::toSafeHtml()`, and the two render paths
+
+The shipped `show` / `preview` views used to call
+`Str::markdown($post->content, ['html_input' => 'strip', 'allow_unsafe_links' => false])`
+inline. That option set now lives on the model as `Post::toSafeHtml()` and both views call
+it — no behavior change to what those two pages render, beyond the image attributes above.
+
+If you render posts from a **host-owned view**, note that the package's two renderers are
+not equivalent and never have been:
+
+| | `toSafeHtml()` | `toHtml()` / `renderedContent()` / `<x-ink::post-body>` |
+|---|---|---|
+| Raw HTML in content | stripped | governed by your `markdown.commonmark_options.html_input` (CommonMark defaults to `allow`) |
+| `javascript:` links | disarmed | governed by `allow_unsafe_links` (defaults to `true`) |
+| GFM tables, strikethrough, task lists, autolinks | yes | only if you add the extension to `markdown.extensions` |
+| Heading permalink anchors, code highlighting | no | per your `markdown` config |
+| `tableOfContents()` compatible | no | yes |
+| Cached | no | `post-rendered:{id}`, forever |
+
+If your posts are authored only by trusted staff and you want anchors, highlighting and your
+own extensions, `<x-ink::post-body>` is the right call — but make sure
+`markdown.commonmark_options` pins `html_input` and `allow_unsafe_links` to values you
+actually intend, because that path inherits them from your app's config, not from ink.
+
 ## To 2.3 from 2.2
 
 ### Host-owned views for public-routes mode

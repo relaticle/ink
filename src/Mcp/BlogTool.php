@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace Relaticle\Ink\Mcp;
 
+use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Tool;
+use League\Flysystem\FilesystemException;
 use Relaticle\Ink\Ink;
 
 /**
@@ -90,5 +94,70 @@ abstract class BlogTool extends Tool
         return $author instanceof Model
             ? $author
             : Response::error('No author could be resolved for this caller. Configure Ink::resolveAuthorUsing().');
+    }
+
+    /**
+     * A `featured_image` value must be a path this package itself produced via
+     * `upload-image` — inside the configured uploads directory and present on the
+     * configured disk. Shared by create/update post tools rather than duplicated,
+     * since the same check also blocks path injection into the hardcoded
+     * `asset('storage/…')` renderers (Post::getDynamicSEOData() and friends).
+     *
+     * A plain `Str::startsWith($value, "{$directory}/")` is not confinement: Flysystem's
+     * local adapter normalizes `..` segments by default (`allow_relative_path_traversal`
+     * defaults to `true`), so e.g. "ink/x/../../other/secret.png" starts with the confined
+     * prefix as a string but resolves to a file outside it, and a value with more `..`
+     * segments than depth (e.g. "ink/../../secret.png") throws an uncaught
+     * `PathTraversalDetected` that would otherwise surface as a masked internal-server-error
+     * response instead of a clean validation failure. Segments are rejected outright
+     * rather than relying on Flysystem's own normalizer semantics, and the disk call is
+     * still wrapped defensively in case some other shape reaches it.
+     *
+     * laravel/mcp does not validate `tools/call` arguments against the tool's
+     * advertised JSON schema before invoking it, so `$value` here can be any JSON
+     * type a caller sends — and Laravel's Validator does not bail on the sibling
+     * `string` rule failing, so this closure still runs even when it did. Guard
+     * explicitly rather than let str_replace()/explode() TypeError on a non-string
+     * under strict_types, which — like the traversal exceptions above — would
+     * surface as the same masked internal-server-error instead of a clean failure.
+     */
+    protected function featuredImagePathRule(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            $directory = trim((string) config('ink.uploads.directory', 'ink'), '/');
+            $invalid = "The featured image must be a path returned by upload-image, inside the [{$directory}] directory.";
+
+            if (! is_string($value)) {
+                $fail($invalid);
+
+                return;
+            }
+
+            $segments = explode('/', str_replace('\\', '/', $value));
+
+            if (in_array('..', $segments, true) || in_array('.', $segments, true) || in_array('', $segments, true)) {
+                $fail($invalid);
+
+                return;
+            }
+
+            if (! Str::startsWith($value, $directory.'/')) {
+                $fail($invalid);
+
+                return;
+            }
+
+            try {
+                $exists = Storage::disk(config('ink.uploads.disk', 'public'))->exists($value);
+            } catch (FilesystemException) {
+                $fail($invalid);
+
+                return;
+            }
+
+            if (! $exists) {
+                $fail('The featured image was not found. Upload it first with upload-image.');
+            }
+        };
     }
 }

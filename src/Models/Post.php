@@ -28,6 +28,7 @@ use RalphJSmit\Laravel\SEO\Support\HasSEO;
 use RalphJSmit\Laravel\SEO\Support\SEOData;
 use Relaticle\Ink\Database\Factories\PostFactory;
 use Relaticle\Ink\Enums\PostStatus;
+use Relaticle\Ink\Support\ImageAttributes;
 use Relaticle\Ink\Support\SchemaExtractor;
 use Spatie\LaravelMarkdown\MarkdownRenderer;
 use Spatie\Sluggable\HasSlug;
@@ -166,11 +167,43 @@ class Post extends Model
         });
     }
 
+    /**
+     * Render the post through the host's `markdown` configuration.
+     *
+     * This is the renderer behind `<x-ink::post-body>`, `tableOfContents()` and the
+     * schema extractors: it honours the host's spatie/laravel-markdown config
+     * (extensions, code highlighting, heading anchors) and therefore also its
+     * `html_input` setting, which CommonMark defaults to `allow`.
+     *
+     * The package's own default page views deliberately do NOT use this method —
+     * see {@see self::toSafeHtml()}.
+     */
     public function toHtml(): string
     {
         return Cache::rememberForever(
             "post-rendered:{$this->id}",
-            fn (): string => app(MarkdownRenderer::class)->toHtml($this->content),
+            fn (): string => ImageAttributes::markLazy(
+                app(MarkdownRenderer::class)->toHtml($this->content),
+            ),
+        );
+    }
+
+    /**
+     * Render the post with ink's own hardened markdown options.
+     *
+     * The default `ink::pages.show` / `ink::pages.preview` views render untrusted-by-
+     * default post content on a public page, so they pin `html_input => strip` and
+     * `allow_unsafe_links => false` instead of inheriting the host's markdown config.
+     * Both views call this one method; the option set and the image-attribute pass
+     * live here rather than being repeated in Blade.
+     */
+    public function toSafeHtml(): string
+    {
+        return ImageAttributes::markLazy(
+            Str::markdown((string) $this->content, [
+                'html_input' => 'strip',
+                'allow_unsafe_links' => false,
+            ]),
         );
     }
 

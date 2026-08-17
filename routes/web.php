@@ -18,15 +18,9 @@ Route::prefix($prefix)->middleware($middleware)->group(function (): void {
 
     Route::get('/category/{slug}', [BlogController::class, 'category'])->name('blog.category');
 
-    // The constraint matters: {post} binds by id, so a non-numeric segment would
-    // otherwise reach the database and throw, 500ing a public route. It's bounded to
-    // 18 digits (safe max for a signed 64-bit id) rather than whereNumber()'s unbounded
-    // [0-9]+, which would let an arbitrarily long digit string reach the query and
-    // overflow a bigint column on Postgres.
-    Route::get('/preview/{post}', [BlogController::class, 'preview'])
-        ->middleware('signed')
-        ->where('post', '[0-9]{1,18}')
-        ->name('blog.preview');
+    // blog.preview is registered separately in routes/preview.php — it loads whenever
+    // either public_routes or mcp is enabled, since GeneratePreviewUrlTool needs it
+    // even while the rest of the public blog is dark.
 
     if (config('ink.features.feed', false)) {
         Route::get('/feed', [BlogController::class, 'feed'])->name('blog.feed');

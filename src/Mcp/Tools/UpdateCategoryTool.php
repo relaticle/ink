@@ -38,10 +38,8 @@ class UpdateCategoryTool extends BlogTool
     {
         $validated = $request->validate([
             'id' => ['required', 'integer'],
-            'name' => ['required', 'string', 'max:255'],
         ], [
             'id.required' => 'You must provide the category ID to update.',
-            'name.required' => 'A name is required to update a category.',
         ]);
 
         $category = Category::find($validated['id']);
@@ -53,6 +51,14 @@ class UpdateCategoryTool extends BlogTool
     {
         /** @var Category $category */
         $category = $record;
+
+        $validated = $request->validate([
+            'id' => ['required', 'integer'],
+            'name' => ['required', 'string', 'max:255'],
+        ], [
+            'id.required' => 'You must provide the category ID to update.',
+            'name.required' => 'A name is required to update a category.',
+        ]);
 
         $category->update([
             'name' => $validated['name'],

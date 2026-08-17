@@ -14,7 +14,7 @@ Filament-native content publishing for blog, docs, and AI-citable articles. Ship
 - **SEO Components** — Meta tags, Open Graph, Twitter Cards, RSS feed, per-page canonicals on paginated listings
 - **JSON-LD Schema** — `BlogPosting` + `BreadcrumbList` on post pages, `FAQPage` and `HowTo` auto-detected from content (opt-in), `Blog` + `CollectionPage` on listings
 - **Search** — Portable `Post::search()` scope (LIKE by default, override for FTS / Scout), drop-in `BlogSearch` Livewire component with `?q=` URL sync
-- **13 MCP Tools** — Full CRUD for posts and categories via Model Context Protocol, authorized through your app's Gate and Sanctum token abilities. Ships a ready-to-register `BlogServer`; requires `laravel/mcp`
+- **14 MCP Tools** — Full CRUD for posts and categories via Model Context Protocol, plus image uploads (URL or base64, mime-sniffed) for featured images and in-content markdown, authorized through your app's Gate and Sanctum token abilities. Ships a ready-to-register `BlogServer`; requires `laravel/mcp`
 - **Publishable UI Components** — Post card, header, body, related posts, category badge, preview banner — all with dark mode
 - **Two install modes**
   - **Headless (default)** — define your own routes/controllers, use the Blade components
@@ -79,6 +79,35 @@ Render your own views instead of the shipped ones by pointing the `views` config
 ```
 
 See [Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views) for the full data contract per action and for wiring the preview "edit this post" link.
+
+## Images
+
+The `upload-image` MCP tool accepts either a fetchable `url` or base64-encoded `data`,
+mime-sniffs the actual bytes (`jpeg`/`png`/`gif`/`webp` only, no `svg`), and returns a path
+you pass as `featured_image` on `create-post-tool` / `update-post-tool`, plus a markdown
+snippet for in-content images. See [MCP Tools](https://relaticle.github.io/ink/essentials/mcp-tools#images)
+for the full contract, including the SSRF stance on the `url` fetch.
+
+::caution
+**base64 uploads are bound by PHP's `post_max_size`, not just `ink.uploads.max_bytes`.**
+base64 inflates the binary size by ~4/3, and PHP rejects an oversized request body
+*before Laravel ever boots* — the client gets a raw PHP warning in an HTTP 200 instead of a
+clean JSON-RPC error, and no app-level config can catch it. `ink.uploads.max_bytes` defaults
+to 3MB (≈4MB base64-encoded) to stay safely under a common 5-8M `post_max_size` floor;
+raise `post_max_size` (and any reverse-proxy body-size limit) to comfortably exceed
+`max_bytes * 4/3` if you need a higher cap. The `url` path has no such ceiling — the image
+is fetched by this server's own HTTP client, not carried in the MCP request body at all —
+so prefer it for anything larger than a few MB.
+::
+
+Rendered post images automatically get `loading="lazy"` and `decoding="async"` on both
+render paths (`Post::toHtml()` behind `<x-ink::post-body>`, and `Post::toSafeHtml()` behind
+the shipped page views); an attribute the author declared by hand is left untouched. There
+is no automatic resizing, format conversion, or `srcset`
+generation — an oversized source image is served at its original dimensions and file size,
+which still costs bandwidth and LCP even with lazy loading. This is a known limitation, not
+a bug: keep source images reasonably sized (a few hundred KB, not multiple MB) before
+uploading until a resizing pipeline ships.
 
 ## Documentation
 
