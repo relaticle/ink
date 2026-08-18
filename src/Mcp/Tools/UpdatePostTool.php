@@ -66,6 +66,7 @@ class UpdatePostTool extends BlogTool
             'published_at' => ['nullable', 'date'],
             'seo_title' => ['nullable', 'string', 'max:60'],
             'seo_description' => ['nullable', 'string', 'max:160'],
+            ...$this->tagsRules(),
         ], [
             'id.required' => 'You must provide the post ID to update.',
         ]);
@@ -109,7 +110,11 @@ class UpdatePostTool extends BlogTool
             $post->seo->update($seoData);
         }
 
-        $post->load('category');
+        if ($request->has('tags')) {
+            $this->syncTagsFromNames($post, array_values($validated['tags'] ?? []));
+        }
+
+        $post->load(['category', 'tags']);
 
         return Response::structured([
             'id' => $post->id,
@@ -118,6 +123,7 @@ class UpdatePostTool extends BlogTool
             'status' => $post->status->value,
             'category' => $post->category?->name,
             'featured_image' => $post->featured_image,
+            'tags' => $post->tags->pluck('name')->all(),
             'seo_title' => $post->seo->title,
             'seo_description' => $post->seo->description,
             'published_at' => $post->published_at?->toIso8601String(),
@@ -139,6 +145,7 @@ class UpdatePostTool extends BlogTool
             'published_at' => $schema->string()->description('New publish date (ISO 8601).'),
             'seo_title' => $schema->string()->description('Custom SEO meta title (max 60 chars).'),
             'seo_description' => $schema->string()->description('Custom SEO meta description (max 160 chars).'),
+            'tags' => $schema->array()->items($schema->string())->description('Tag names to sync. Replaces the full set; an empty array clears all tags; omit to leave tags untouched.'),
         ];
     }
 }

@@ -39,9 +39,9 @@ class GetPostTool extends BlogTool
         $post = null;
 
         if ($id = $request->get('id')) {
-            $post = Post::with(['category', 'seo'])->find($id);
+            $post = Post::with(['category', 'seo', 'tags'])->find($id);
         } elseif ($slug = $request->get('slug')) {
-            $post = Post::with(['category', 'seo'])->where('slug', $slug)->first();
+            $post = Post::with(['category', 'seo', 'tags'])->where('slug', $slug)->first();
         }
 
         return $post ?? Response::error('Post not found. Provide a valid id or slug.');
@@ -62,6 +62,7 @@ class GetPostTool extends BlogTool
             'status' => $post->status->value,
             'category_id' => $post->category_id,
             'category' => $post->category?->name,
+            'tags' => $post->tags->pluck('name')->all(),
             'author_id' => $post->author_id,
             'seo_title' => $post->seo->title,
             'seo_description' => $post->seo->description,
