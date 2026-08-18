@@ -40,6 +40,7 @@ class CreatePostTool extends BlogTool
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255', $this->uniqueSlugRule()],
             'content' => ['required', 'string'],
             'excerpt' => ['required', 'string', 'max:500'],
             'featured_image' => ['nullable', 'string', $this->featuredImagePathRule()],
@@ -64,6 +65,7 @@ class CreatePostTool extends BlogTool
 
         $post = Post::create([
             'title' => $validated['title'],
+            'slug' => $validated['slug'] ?? null,
             'content' => $validated['content'],
             'excerpt' => $validated['excerpt'],
             'featured_image' => $validated['featured_image'] ?? null,
@@ -106,6 +108,7 @@ class CreatePostTool extends BlogTool
     {
         return [
             'title' => $schema->string()->description('The post title.')->required(),
+            'slug' => $schema->string()->description('URL slug. Generated from the title when omitted. Must be unique among live posts; a slug held only by a deleted post is reusable.'),
             'content' => $schema->string()->description('The post content in Markdown. Converted to HTML on save.')->required(),
             'excerpt' => $schema->string()->description('Short excerpt/summary of the post.')->required(),
             'featured_image' => $schema->string()->description('Featured image path, as returned by upload-image (e.g. "ink/xxx.webp").'),

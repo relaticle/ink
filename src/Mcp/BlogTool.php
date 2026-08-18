@@ -99,6 +99,31 @@ abstract class BlogTool extends Tool
     }
 
     /**
+     * Rejects a slug already worn by another live post.
+     *
+     * Trashed posts are excluded on purpose: the models release their slug
+     * when soft-deleted, so refusing one here would block a slug the write
+     * would in fact accept.
+     */
+    protected function uniqueSlugRule(?Post $ignoring = null): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($ignoring): void {
+            if (! is_string($value) || $value === '') {
+                return;
+            }
+
+            $taken = Post::query()
+                ->where('slug', $value)
+                ->when($ignoring?->exists, fn ($query) => $query->whereKeyNot($ignoring->getKey()))
+                ->exists();
+
+            if ($taken) {
+                $fail("The slug \"{$value}\" is already used by another post.");
+            }
+        };
+    }
+
+    /**
      * Sync a post's tags from a list of names. Existing tags are matched
      * case-insensitively so agents cannot fragment the vocabulary ("MCP" vs
      * "mcp"); unknown names are created. An empty list detaches everything.

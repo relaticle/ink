@@ -58,6 +58,7 @@ class UpdatePostTool extends BlogTool
         $validated = $request->validate([
             'id' => ['required', 'integer'],
             'title' => ['nullable', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255', $this->uniqueSlugRule($post)],
             'content' => ['nullable', 'string'],
             'excerpt' => ['nullable', 'string', 'max:500'],
             'featured_image' => ['nullable', 'string', $this->featuredImagePathRule()],
@@ -77,6 +78,7 @@ class UpdatePostTool extends BlogTool
 
         $data = array_filter([
             'title' => $validated['title'] ?? null,
+            'slug' => $validated['slug'] ?? null,
             'content' => $content,
             'excerpt' => $validated['excerpt'] ?? null,
             'category_id' => $validated['category_id'] ?? null,
@@ -137,6 +139,7 @@ class UpdatePostTool extends BlogTool
         return [
             'id' => $schema->integer()->description('The post ID to update.')->required(),
             'title' => $schema->string()->description('New title.'),
+            'slug' => $schema->string()->description('New URL slug. Changing this breaks existing links to the post. Must be unique among live posts; a slug held only by a deleted post is reusable.'),
             'content' => $schema->string()->description('New content in Markdown. Converted to HTML on save.'),
             'excerpt' => $schema->string()->description('New excerpt.'),
             'featured_image' => $schema->string()->description('New featured image path, as returned by upload-image (e.g. "ink/xxx.webp"). Pass null to clear it.'),
