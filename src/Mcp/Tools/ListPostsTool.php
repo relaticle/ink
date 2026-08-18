@@ -38,7 +38,7 @@ class ListPostsTool extends BlogTool
     protected function run(Request $request, ?Model $record): Response|ResponseFactory
     {
 
-        $query = Post::query()->with('category');
+        $query = Post::query()->with(['category', 'tags']);
 
         if ($status = $request->get('status')) {
             $query->where('status', $status);
@@ -69,6 +69,7 @@ class ListPostsTool extends BlogTool
                 'excerpt' => $post->excerpt,
                 'status' => $post->status->value,
                 'category' => $post->category?->name,
+                'tags' => $post->tags->pluck('name')->all(),
                 'author_id' => $post->author_id,
                 'published_at' => $post->published_at?->toIso8601String(),
                 'created_at' => $post->created_at->toIso8601String(),

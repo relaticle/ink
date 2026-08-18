@@ -48,6 +48,7 @@ class CreatePostTool extends BlogTool
             'published_at' => ['nullable', 'date'],
             'seo_title' => ['nullable', 'string', 'max:60'],
             'seo_description' => ['nullable', 'string', 'max:160'],
+            ...$this->tagsRules(),
         ], [
             'title.required' => 'A title is required to create a post.',
             'content.required' => 'Content is required to create a post.',
@@ -79,7 +80,11 @@ class CreatePostTool extends BlogTool
             ]));
         }
 
-        $post->load('category');
+        if (array_key_exists('tags', $validated) && is_array($validated['tags'])) {
+            $this->syncTagsFromNames($post, array_values($validated['tags']));
+        }
+
+        $post->load(['category', 'tags']);
 
         return Response::structured([
             'id' => $post->id,
@@ -88,6 +93,7 @@ class CreatePostTool extends BlogTool
             'status' => $post->status->value,
             'category' => $post->category?->name,
             'featured_image' => $post->featured_image,
+            'tags' => $post->tags->pluck('name')->all(),
             'seo_title' => $post->seo->title,
             'seo_description' => $post->seo->description,
             'published_at' => $post->published_at?->toIso8601String(),
@@ -108,6 +114,7 @@ class CreatePostTool extends BlogTool
             'published_at' => $schema->string()->description('ISO 8601 publish date. Required when status is published.'),
             'seo_title' => $schema->string()->description('Custom SEO meta title (max 60 chars). Falls back to post title if not set.'),
             'seo_description' => $schema->string()->description('Custom SEO meta description (max 160 chars). Falls back to excerpt if not set.'),
+            'tags' => $schema->array()->items($schema->string())->description('Tag names. Existing tags are matched case-insensitively; unknown names are created. Requires the tags feature.'),
         ];
     }
 }

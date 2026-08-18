@@ -1,5 +1,25 @@
 # Upgrading
 
+## To 2.5 from 2.4
+
+No breaking changes — 2.5 is additive.
+
+### Tags over MCP
+
+`create-post-tool` and `update-post-tool` accept a `tags` array of tag **names**.
+Existing tags are matched case-insensitively; unknown names are created; on
+update the set is replaced in full, an empty array clears it, and omitting the
+key leaves tags untouched. `get-post-tool` and `list-posts-tool` now include a
+`tags` field. A new `list-tags-tool` returns the vocabulary with post counts so
+agents reuse tags instead of inventing near-duplicates.
+
+Everything is gated on `ink.features.tags`: with the feature disabled the
+`tags` parameter is rejected with a clear validation error and `list-tags-tool`
+is not registered. Hosts that declare their own server class with a manual
+`$tools` list must add `ListTagsTool::class` themselves. No new policy is
+required — tag reads/writes authorize through the existing `Post` policy
+(`viewAny`/`create`/`update`), since tags are post metadata.
+
 ## To 2.4 from 2.3
 
 ### `blog.preview` is now registered when `features.mcp` is enabled, not only `features.public_routes`

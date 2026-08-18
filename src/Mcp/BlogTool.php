@@ -18,6 +18,8 @@ use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Tool;
 use League\Flysystem\FilesystemException;
 use Relaticle\Ink\Ink;
+use Relaticle\Ink\Models\Post;
+use Relaticle\Ink\Models\Tag;
 
 /**
  * Base class for the blog tools.
@@ -75,6 +77,53 @@ abstract class BlogTool extends Tool
         if (method_exists($caller, 'tokenCan') && ! $caller->tokenCan($this->tokenAbility())) {
             throw new AuthorizationException("Token missing required ability: {$this->tokenAbility()}");
         }
+    }
+
+    /**
+     * Validation rules for the shared `tags` parameter. Rejects the parameter
+     * outright when the host has the tags feature disabled, so an agent gets a
+     * clear error instead of a silent no-op.
+     *
+     * @return array<string, list<mixed>>
+     */
+    protected function tagsRules(): array
+    {
+        return [
+            'tags' => ['nullable', 'array', 'max:20', function (string $attribute, mixed $value, Closure $fail): void {
+                if (! config('ink.features.tags')) {
+                    $fail('Tags are disabled on this blog (ink.features.tags is false).');
+                }
+            }],
+            'tags.*' => ['string', 'max:50'],
+        ];
+    }
+
+    /**
+     * Sync a post's tags from a list of names. Existing tags are matched
+     * case-insensitively so agents cannot fragment the vocabulary ("MCP" vs
+     * "mcp"); unknown names are created. An empty list detaches everything.
+     *
+     * @param  list<string>  $names
+     */
+    protected function syncTagsFromNames(Post $post, array $names): void
+    {
+        $ids = [];
+
+        foreach ($names as $name) {
+            $name = trim($name);
+
+            if ($name === '') {
+                continue;
+            }
+
+            $tag = Tag::query()
+                ->whereRaw('lower(name) = ?', [mb_strtolower($name)])
+                ->first() ?? Tag::create(['name' => $name]);
+
+            $ids[$tag->getKey()] = true;
+        }
+
+        $post->tags()->sync(array_keys($ids));
     }
 
     protected function caller(Request $request): ?Authenticatable
