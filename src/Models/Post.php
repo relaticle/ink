@@ -28,6 +28,7 @@ use RalphJSmit\Laravel\SEO\Support\HasSEO;
 use RalphJSmit\Laravel\SEO\Support\SEOData;
 use Relaticle\Ink\Database\Factories\PostFactory;
 use Relaticle\Ink\Enums\PostStatus;
+use Relaticle\Ink\Models\Concerns\ReclaimsTrashedSlugs;
 use Relaticle\Ink\Support\ImageAttributes;
 use Relaticle\Ink\Support\SchemaExtractor;
 use Spatie\LaravelMarkdown\MarkdownRenderer;
@@ -39,6 +40,9 @@ class Post extends Model
     use HasFactory;
     use HasSEO;
     use HasSlug;
+    use ReclaimsTrashedSlugs {
+        ReclaimsTrashedSlugs::generateSlugAction insteadof HasSlug;
+    }
     use SoftDeletes;
 
     protected $table = 'blog_posts';

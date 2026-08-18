@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Relaticle\Ink\Database\Factories\TagFactory;
+use Relaticle\Ink\Models\Concerns\ReclaimsTrashedSlugs;
 use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
 
@@ -16,6 +17,9 @@ class Tag extends Model
 {
     use HasFactory;
     use HasSlug;
+    use ReclaimsTrashedSlugs {
+        ReclaimsTrashedSlugs::generateSlugAction insteadof HasSlug;
+    }
     use SoftDeletes;
 
     protected $table = 'blog_tags';
