@@ -1,108 +1,3 @@
-# Ink — Headless blog package for Filament
-
-::u-page-hero
-#title
-A drop-in blog for Filament
-
-#description
-Ships the admin, SEO components, MCP tools, and Blade components. Bring your own routes for full control — or flip a flag and get `/blog` out of the box.
-
-#links
-  :::u-button
-  ---
-  color: neutral
-  size: xl
-  to: https://relaticle.github.io/ink/getting-started/installation
-  trailing-icon: i-lucide-arrow-right
-  ---
-  Get started
-  :::
-
-  :::u-button
-  ---
-  color: neutral
-  icon: simple-icons:github
-  size: xl
-  to: https://github.com/relaticle/ink
-  variant: outline
-  ---
-  Source on GitHub
-  :::
-::
-
-::u-page-section
-#title
-What's included
-
-#features
-  :::u-page-feature
-  ---
-  icon: i-lucide-layout-dashboard
-  ---
-  #title
-  Filament admin
-  
-  #description
-  Posts, categories, tags. Markdown editor, draft and scheduled UX, SEO fields, bulk publish actions.
-  :::
-
-  :::u-page-feature
-  ---
-  icon: i-lucide-search
-  ---
-  #title
-  SEO baked in
-  
-  #description
-  Meta tags, Open Graph, Twitter Cards, JSON-LD `BlogPosting`, RSS feed, and a sitemap helper — all publishable.
-  :::
-
-  :::u-page-feature
-  ---
-  icon: i-lucide-bot
-  ---
-  #title
-  MCP tools for AI
-  
-  #description
-  14 Model Context Protocol tools so AI agents can write, illustrate, and publish posts. Sanctum-gated and markdown-sanitized.
-  :::
-
-  :::u-page-feature
-  ---
-  icon: i-lucide-hash
-  ---
-  #title
-  Tags taxonomy
-  
-  #description
-  Many-to-many tags with admin UI and a public archive at `/blog/tag/{slug}`. All behind one config flag.
-  :::
-
-  :::u-page-feature
-  ---
-  icon: i-lucide-image
-  ---
-  #title
-  MediaLibrary ready
-  
-  #description
-  Featured-image uploads switch to `SpatieMediaLibraryFileUpload` when you install the package and flip the flag.
-  :::
-
-  :::u-page-feature
-  ---
-  icon: i-lucide-paintbrush
-  ---
-  #title
-  Tailwind components
-  
-  #description
-  Post card, header, body, related posts, preview banner. Dark mode out of the box. Publish and customize.
-  :::
-::
-
-
 # Installation
 
 ## Requirements
@@ -123,7 +18,7 @@ composer require relaticle/ink
 
   :::alert{type="info"}
   For private repositories, add the VCS repository to your `composer.json` first:
-  
+
   ```json [composer.json]
   "repositories": [
       {"type": "vcs", "url": "git@github.com:relaticle/ink.git"}
@@ -818,7 +713,7 @@ hypothetical — it already bit a host of this package: `ink.features.mcp` silen
 to `null` after they'd published `config/ink.php` before that flag existed.
 
 After upgrading, diff your published `config/ink.php` against the package's
-[`config/ink.php`](https://github.com/relaticle/ink/blob/main/config/ink.php){rel="nofollow"} and add any
+[`config/ink.php`](https://github.com/relaticle/ink/blob/main/config/ink.php){rel=""nofollow""} and add any
 new subkeys by hand.
 ::
 
@@ -1531,7 +1426,7 @@ public function relatedPosts(int $limit = 3): Builder
 
 # MediaLibrary Integration
 
-The package ships an **opt-in** integration with [`spatie/laravel-medialibrary`](https://spatie.be/docs/laravel-medialibrary){rel="nofollow"}. When enabled, the featured-image upload uses `SpatieMediaLibraryFileUpload` instead of the default `FileUpload`.
+The package ships an **opt-in** integration with [`spatie/laravel-medialibrary`](https://spatie.be/docs/laravel-medialibrary){rel="&#x22;nofollow&#x22;"}. When enabled, the featured-image upload uses `SpatieMediaLibraryFileUpload` instead of the default `FileUpload`.
 
 ::alert{type="info"}
 **MediaLibrary is not a hard dependency.**
@@ -1550,13 +1445,13 @@ The package ships an **opt-in** integration with [`spatie/laravel-medialibrary`]
 ## Enable
 
 1. Install the package:
-   ```bash [Terminal]
+   ```bash \[Terminal]
    composer require spatie/laravel-medialibrary
    php artisan vendor:publish --provider="Spatie\MediaLibrary\MediaLibraryServiceProvider" --tag="medialibrary-migrations"
    php artisan migrate
    ```
 2. Flip the flag:
-   ```php [config/ink.php]
+   ```php \[config/ink.php]
    'features' => [
        'media_library' => true,
    ],
@@ -1598,7 +1493,7 @@ Then point the package at your model:
 ::alert{type="warning"}
 Swapping the post model isn't a config option in v1.4 — that lands in Phase 3 along with the model-side integration. Watch the 
 
-[GitHub releases](https://github.com/relaticle/ink/releases){rel="nofollow"}
+[GitHub releases](https://github.com/relaticle/ink/releases){rel=""nofollow""}
 
  for 
 
@@ -1727,7 +1622,7 @@ The `BlogPosting` + `BreadcrumbList` schemas remain on regardless — they're co
 
 ## Validate your schema
 
-After publishing, paste a post URL into [Google Rich Results Test](https://search.google.com/test/rich-results){rel="nofollow"} or the [Schema.org Validator](https://validator.schema.org/){rel="nofollow"} to confirm zero errors.
+After publishing, paste a post URL into [Google Rich Results Test](https://search.google.com/test/rich-results){rel="&#x22;nofollow&#x22;"} or the [Schema.org Validator](https://validator.schema.org/){rel="&#x22;nofollow&#x22;"} to confirm zero errors.
 
 
 # Listing SEO
@@ -1801,4 +1696,109 @@ Follow PSR-12 and Laravel conventions. All files must have `declare(strict_types
 
 # License
 
-Ink is open-sourced software licensed under the [MIT License](https://opensource.org/licenses/MIT){rel="nofollow"}.
+Ink is open-sourced software licensed under the [MIT License](https://opensource.org/licenses/MIT){rel="&#x22;nofollow&#x22;"}.
+
+
+# Ink — Headless blog package for Filament
+
+::u-page-hero
+#title
+A drop-in blog for Filament
+
+#description
+Ships the admin, SEO components, MCP tools, and Blade components. Bring your own routes for full control — or flip a flag and get `/blog` out of the box.
+
+#links
+  :::u-button
+  ---
+  color: neutral
+  size: xl
+  to: https://relaticle.github.io/ink/getting-started/installation
+  trailing-icon: i-lucide-arrow-right
+  ---
+  Get started
+  :::
+
+  :::u-button
+  ---
+  color: neutral
+  icon: simple-icons:github
+  size: xl
+  to: https://github.com/relaticle/ink
+  variant: outline
+  ---
+  Source on GitHub
+  :::
+::
+
+::u-page-section
+#title
+What's included
+
+#features
+  :::u-page-feature
+  ---
+  icon: i-lucide-layout-dashboard
+  ---
+  #title
+  Filament admin
+
+  #description
+  Posts, categories, tags. Markdown editor, draft and scheduled UX, SEO fields, bulk publish actions.
+  :::
+
+  :::u-page-feature
+  ---
+  icon: i-lucide-search
+  ---
+  #title
+  SEO baked in
+
+  #description
+  Meta tags, Open Graph, Twitter Cards, JSON-LD `BlogPosting`, RSS feed, and a sitemap helper — all publishable.
+  :::
+
+  :::u-page-feature
+  ---
+  icon: i-lucide-bot
+  ---
+  #title
+  MCP tools for AI
+
+  #description
+  14 Model Context Protocol tools so AI agents can write, illustrate, and publish posts. Sanctum-gated and markdown-sanitized.
+  :::
+
+  :::u-page-feature
+  ---
+  icon: i-lucide-hash
+  ---
+  #title
+  Tags taxonomy
+
+  #description
+  Many-to-many tags with admin UI and a public archive at `/blog/tag/{slug}`. All behind one config flag.
+  :::
+
+  :::u-page-feature
+  ---
+  icon: i-lucide-image
+  ---
+  #title
+  MediaLibrary ready
+
+  #description
+  Featured-image uploads switch to `SpatieMediaLibraryFileUpload` when you install the package and flip the flag.
+  :::
+
+  :::u-page-feature
+  ---
+  icon: i-lucide-paintbrush
+  ---
+  #title
+  Tailwind components
+
+  #description
+  Post card, header, body, related posts, preview banner. Dark mode out of the box. Publish and customize.
+  :::
+::

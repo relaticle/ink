@@ -4,24 +4,24 @@
 
 - [Ink](https://relaticle.github.io/ink/llms-full.txt)
 
-## Landing
-
-- [Ink — Headless blog package for Filament](https://relaticle.github.io/ink): Drop a blog into any Filament 5 app. Ships admin, SEO, MCP tools, and Blade components — bring your own routes or opt into the built-in ones with a config flag.
-
 ## Docs
 
-- [Installation](https://relaticle.github.io/ink/getting-started/installation): Install Ink in your Laravel application.
-- [Frontend Setup (headless)](https://relaticle.github.io/ink/getting-started/frontend-setup): Build your own blog frontend using the package's Blade components.
-- [Public-routes mode](https://relaticle.github.io/ink/getting-started/public-routes-mode): Get a working blog at /blog without writing controllers — opt in via config flags.
-- [Blade Components](https://relaticle.github.io/ink/essentials/blade-components): All available Blade components for building your blog frontend.
-- [Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views): Render ink's controllers through views your app already owns, and control the preview edit link.
-- [Filament Admin](https://relaticle.github.io/ink/essentials/filament-admin): Managing blog posts, categories, and tags in the Filament admin panel.
-- [MCP Tools](https://relaticle.github.io/ink/essentials/mcp-tools): 14 MCP tools for AI agent blog management.
-- [Configuration](https://relaticle.github.io/ink/essentials/configuration): Full configuration reference for Ink.
-- [Tags Taxonomy](https://relaticle.github.io/ink/essentials/tags): Opt-in many-to-many tags taxonomy with admin UI and public archive.
-- [MediaLibrary Integration](https://relaticle.github.io/ink/essentials/media-library): Opt-in featured-image upload via spatie/laravel-medialibrary.
-- [Search](https://relaticle.github.io/ink/essentials/search): Portable search across blog posts with a config-driven backend hook.
-- [Schema](https://relaticle.github.io/ink/essentials/schema): Automatic JSON-LD schema emission for posts and listings.
-- [Listing SEO](https://relaticle.github.io/ink/essentials/listing-seo): Per-page canonicals, titles, and metadata for listing routes.
-- [Contributing](https://relaticle.github.io/ink/community/contributing): How to contribute to Ink.
-- [License](https://relaticle.github.io/ink/community/license): License information.
+- [Installation](https://relaticle.github.io/ink/raw/getting-started/installation.md): Install Ink in your Laravel application.
+- [Frontend Setup (headless)](https://relaticle.github.io/ink/raw/getting-started/frontend-setup.md): Build your own blog frontend using the package's Blade components.
+- [Public-routes mode](https://relaticle.github.io/ink/raw/getting-started/public-routes-mode.md): Get a working blog at /blog without writing controllers — opt in via config flags.
+- [Blade Components](https://relaticle.github.io/ink/raw/essentials/blade-components.md): All available Blade components for building your blog frontend.
+- [Host-Owned Views](https://relaticle.github.io/ink/raw/essentials/host-owned-views.md): Render ink's controllers through views your app already owns, and control the preview edit link.
+- [Filament Admin](https://relaticle.github.io/ink/raw/essentials/filament-admin.md): Managing blog posts, categories, and tags in the Filament admin panel.
+- [MCP Tools](https://relaticle.github.io/ink/raw/essentials/mcp-tools.md): 14 MCP tools for AI agent blog management.
+- [Configuration](https://relaticle.github.io/ink/raw/essentials/configuration.md): Full configuration reference for Ink.
+- [Tags Taxonomy](https://relaticle.github.io/ink/raw/essentials/tags.md): Opt-in many-to-many tags taxonomy with admin UI and public archive.
+- [MediaLibrary Integration](https://relaticle.github.io/ink/raw/essentials/media-library.md): Opt-in featured-image upload via spatie/laravel-medialibrary.
+- [Search](https://relaticle.github.io/ink/raw/essentials/search.md): Portable search across blog posts with a config-driven backend hook.
+- [Schema](https://relaticle.github.io/ink/raw/essentials/schema.md): Automatic JSON-LD schema emission for posts and listings.
+- [Listing SEO](https://relaticle.github.io/ink/raw/essentials/listing-seo.md): Per-page canonicals, titles, and metadata for listing routes.
+- [Contributing](https://relaticle.github.io/ink/raw/community/contributing.md): How to contribute to Ink.
+- [License](https://relaticle.github.io/ink/raw/community/license.md): License information.
+
+## Landing
+
+- [Ink — Headless blog package for Filament](https://relaticle.github.io/ink/raw/index.md): Drop a blog into any Filament 5 app. Ships admin, SEO, MCP tools, and Blade components — bring your own routes or opt into the built-in ones with a config flag.
