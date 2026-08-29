@@ -24,5 +24,10 @@ updates:
       npm:
         patterns:
           - "*"
+    ignore:
+      # docus declares a `better-sqlite3: 12.x` peer range. A major bump makes
+      # `npm ci` unresolvable. Drop this once docus widens the range.
+      - dependency-name: "better-sqlite3"
+        update-types: ["version-update:semver-major"]
     labels:
       - "dependencies"
