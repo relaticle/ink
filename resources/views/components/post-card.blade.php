@@ -26,7 +26,7 @@
                 src="{{ asset('storage/' . $post->featured_image) }}"
                 alt="{{ $post->title }}"
                 loading="lazy"
-                class="w-24 h-24 object-cover rounded-lg shrink-0"
+                class="w-28 sm:w-40 aspect-video object-cover rounded-lg shrink-0"
             >
         @endif
     </div>
