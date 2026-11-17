@@ -130,7 +130,12 @@ class PostResource extends Resource
                                     ->options(fn (): array => collect(Ink::locales())->mapWithKeys(fn (string $locale): array => [$locale => strtoupper($locale)])->all())
                                     ->default(fn (): string => Ink::defaultLocale())
                                     ->required()
-                                    ->live(),
+                                    ->live()
+                                    ->rule(fn (Get $get, ?Post $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                                        if ($record?->exists && empty($get('translation_of')) && $value !== $record->locale && $record->groupHasOtherIn((string) $value)) {
+                                            $fail('Another post in this translation group already uses this language.');
+                                        }
+                                    }),
 
                                 Select::make('translation_of')
                                     ->label('Translation of')
@@ -138,7 +143,7 @@ class PostResource extends Resource
                                     ->dehydrated(false)
                                     ->getSearchResultsUsing(fn (string $search, Get $get, ?Post $record): array => Post::query()
                                         ->where('locale', '!=', $get('locale') ?? Ink::defaultLocale())
-                                        ->where('title', 'like', "%{$search}%")
+                                        ->whereLike('title', "%{$search}%", caseSensitive: false)
                                         ->when($record?->exists, fn (Builder $query) => $query->whereKeyNot($record->getKey()))
                                         ->limit(50)
                                         ->get()

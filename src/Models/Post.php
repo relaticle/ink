@@ -342,6 +342,15 @@ class Post extends Model
             ->exists();
     }
 
+    public function groupHasOtherIn(string $locale): bool
+    {
+        return $this->translation_group !== null && static::query()
+            ->where('translation_group', $this->translation_group)
+            ->inLocale($locale)
+            ->whereKeyNot($this->getKey())
+            ->exists();
+    }
+
     /** @return Collection<int, Post> */
     public function translations(): Collection
     {
@@ -385,12 +394,14 @@ class Post extends Model
             $url = $version->getUrl();
 
             if ($url !== '#') {
-                $urls[$version->locale] = $url;
+                $urls[str_replace('_', '-', $version->locale)] = $url;
             }
         }
 
-        if (isset($urls[Ink::defaultLocale()])) {
-            $urls['x-default'] = $urls[Ink::defaultLocale()];
+        $default = str_replace('_', '-', Ink::defaultLocale());
+
+        if (isset($urls[$default])) {
+            $urls['x-default'] = $urls[$default];
         }
 
         return $urls;

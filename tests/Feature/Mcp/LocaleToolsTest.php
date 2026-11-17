@@ -133,3 +133,27 @@ test('get-post-tool returns the locale and every translation, drafts included', 
         ->assertOk()
         ->assertStructuredContent(fn ($json) => $json->where('id', $english->id)->etc());
 });
+
+test('update-post-tool refuses a locale change that collides with another post in the group', function () {
+    $english = Post::factory()->published()->create();
+    $group = $english->ensureTranslationGroup();
+    Post::factory()->published()->create(['locale' => 'de', 'translation_group' => $group]);
+    $french = Post::factory()->published()->create(['locale' => 'fr', 'translation_group' => $group]);
+
+    BlogServer::actingAs(tokenUser())
+        ->tool(UpdatePostTool::class, ['id' => $french->id, 'locale' => 'de'])
+        ->assertHasErrors();
+
+    expect($french->fresh()->locale)->toBe('fr');
+});
+
+test('update-post-tool allows a locale change that frees no collision', function () {
+    $english = Post::factory()->published()->create();
+    $french = Post::factory()->published()->create(['locale' => 'fr', 'translation_group' => $english->ensureTranslationGroup()]);
+
+    BlogServer::actingAs(tokenUser())
+        ->tool(UpdatePostTool::class, ['id' => $french->id, 'locale' => 'de'])
+        ->assertOk();
+
+    expect($french->fresh()->locale)->toBe('de');
+});

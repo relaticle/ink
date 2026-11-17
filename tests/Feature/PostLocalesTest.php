@@ -262,3 +262,23 @@ test('the feed component and feed link follow the locale', function () {
 
     expect(Blade::render('<x-ink::feed-link />'))->toContain('href="'.url('/de/blog/feed').'"');
 });
+
+test('a prefixed locale is not swallowed by the default catch-all when the prefix is empty', function () {
+    config()->set('ink.prefix', '');
+    bootBlogIn(['en', 'de']);
+    translatedPair(['content' => 'English body'], ['content' => 'Deutscher Text']);
+
+    $this->get('/hello')->assertOk()->assertSee('English body');
+    $this->get('/de/hello')->assertOk()->assertSee('Deutscher Text');
+    $this->get('/de')->assertOk()->assertSee('Hallo')->assertDontSee('Hello');
+    expect(route('blog.show', 'hello'))->toBe(url('/hello'))
+        ->and(route('blog.de.show', 'hello'))->toBe(url('/de/hello'));
+});
+
+test('hreflang uses BCP 47 codes', function () {
+    bootBlogIn(['en', 'pt_BR']);
+    [$en] = translatedPair([], ['locale' => 'pt_BR']);
+
+    expect(array_keys($en->alternateUrls()))->toContain('pt-BR')->not->toContain('pt_BR');
+    $this->get('/pt_BR/blog/hello')->assertSee('hreflang="pt-BR"', false);
+});

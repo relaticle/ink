@@ -113,10 +113,14 @@ abstract class BlogTool extends Tool
     }
 
     /** @return array<string, list<mixed>> */
-    protected function localeRules(string $locale, ?Post $ignoring = null): array
+    protected function localeRules(string $locale, ?Post $ignoring = null, bool $linking = false): array
     {
         return [
-            'locale' => ['nullable', 'string', Rule::in(Ink::locales())],
+            'locale' => ['nullable', 'string', Rule::in(Ink::locales()), function (string $attribute, mixed $value, Closure $fail) use ($ignoring, $linking): void {
+                if ($ignoring?->exists && $value !== $ignoring->locale && ! $linking && $ignoring->groupHasOtherIn((string) $value)) {
+                    $fail("Another post in this translation group already uses the \"{$value}\" locale.");
+                }
+            }],
             'translation_of' => ['nullable', 'integer', function (string $attribute, mixed $value, Closure $fail) use ($locale, $ignoring): void {
                 $source = is_numeric($value) ? Post::find($value) : null;
 

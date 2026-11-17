@@ -69,7 +69,7 @@ class UpdatePostTool extends BlogTool
             'published_at' => ['nullable', 'date'],
             'seo_title' => ['nullable', 'string', 'max:60'],
             'seo_description' => ['nullable', 'string', 'max:160'],
-            ...$this->localeRules($locale, $post),
+            ...$this->localeRules($locale, $post, $request->get('translation_of') !== null),
             ...$this->tagsRules(),
         ], [
             'id.required' => 'You must provide the post ID to update.',
