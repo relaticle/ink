@@ -12,6 +12,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
+use Relaticle\Ink\Ink;
 use Relaticle\Ink\Mcp\BlogTool;
 use Relaticle\Ink\Models\Post;
 
@@ -41,7 +42,12 @@ class GetPostTool extends BlogTool
         if ($id = $request->get('id')) {
             $post = Post::with(['category', 'seo', 'tags'])->find($id);
         } elseif ($slug = $request->get('slug')) {
-            $post = Post::with(['category', 'seo', 'tags'])->where('slug', $slug)->first();
+            $locale = $request->get('locale');
+
+            $post = Post::with(['category', 'seo', 'tags'])
+                ->where('slug', $slug)
+                ->inLocale(is_string($locale) && $locale !== '' ? $locale : Ink::defaultLocale())
+                ->first();
         }
 
         return $post ?? Response::error('Post not found. Provide a valid id or slug.');
@@ -56,6 +62,14 @@ class GetPostTool extends BlogTool
             'id' => $post->id,
             'title' => $post->title,
             'slug' => $post->slug,
+            'locale' => $post->locale,
+            'translations' => $post->translation_group === null ? [] : $post->siblings()->get()->map(fn (Post $translation): array => [
+                'id' => $translation->id,
+                'locale' => $translation->locale,
+                'slug' => $translation->slug,
+                'title' => $translation->title,
+                'status' => $translation->status->value,
+            ])->all(),
             'content' => $post->content,
             'excerpt' => $post->excerpt,
             'featured_image' => $post->featured_image,
@@ -80,6 +94,8 @@ class GetPostTool extends BlogTool
                 ->description('The post ID. Provide either id or slug.'),
             'slug' => $schema->string()
                 ->description('The post slug. Provide either id or slug.'),
+            'locale' => $schema->string()
+                ->description('Language the slug belongs to, since slugs are unique per language. Defaults to the blog default locale.'),
         ];
     }
 }
