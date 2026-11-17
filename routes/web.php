@@ -9,7 +9,10 @@ use Relaticle\Ink\Ink;
 $prefix = config('ink.prefix', 'ink');
 $middleware = config('ink.middleware', ['web']);
 
-foreach (Ink::locales() as $locale) {
+// The default locale goes last: with an empty prefix its catch-all /{slug} would swallow /de.
+$locales = collect(Ink::locales())->sortBy(fn (string $locale): int => $locale === Ink::defaultLocale() ? 1 : 0);
+
+foreach ($locales as $locale) {
     $isDefault = $locale === Ink::defaultLocale();
 
     Route::prefix($isDefault ? $prefix : "{$locale}/{$prefix}")
