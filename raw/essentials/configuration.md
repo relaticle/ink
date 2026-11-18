@@ -32,6 +32,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Languages
+    |--------------------------------------------------------------------------
+    | The languages posts are written in. The default locale keeps the
+    | unprefixed routes (/blog/..., names blog.*). Every other locale is
+    | served under /{locale}/{prefix}/... with names blog.{locale}.*.
+    | See: essentials/languages
+    */
+    'locales' => ['en'],
+    'default_locale' => 'en',
+
+    /*
+    |--------------------------------------------------------------------------
     | Layout view
     |--------------------------------------------------------------------------
     | The Blade layout the shipped page views extend (when public-routes mode

@@ -11,6 +11,7 @@
 - [Public-routes mode](https://relaticle.github.io/ink/raw/getting-started/public-routes-mode.md): Get a working blog at /blog without writing controllers — opt in via config flags.
 - [Blade Components](https://relaticle.github.io/ink/raw/essentials/blade-components.md): All available Blade components for building your blog frontend.
 - [Host-Owned Views](https://relaticle.github.io/ink/raw/essentials/host-owned-views.md): Render ink's controllers through views your app already owns, and control the preview edit link.
+- [Languages](https://relaticle.github.io/ink/raw/essentials/languages.md): Publish the same post in several languages with per-language URLs, hreflang and feeds.
 - [Filament Admin](https://relaticle.github.io/ink/raw/essentials/filament-admin.md): Managing blog posts, categories, and tags in the Filament admin panel.
 - [MCP Tools](https://relaticle.github.io/ink/raw/essentials/mcp-tools.md): 14 MCP tools for AI agent blog management.
 - [Configuration](https://relaticle.github.io/ink/raw/essentials/configuration.md): Full configuration reference for Ink.
