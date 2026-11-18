@@ -16,57 +16,76 @@ class BlogSitemapGenerator
 {
     public static function addToSitemap(Sitemap $sitemap): Sitemap
     {
-        if (! Route::has('blog.index')) {
+        if (! Route::has(Ink::routeName('index'))) {
             return $sitemap;
         }
 
+        foreach (Ink::locales() as $locale) {
+            self::addLocale($sitemap, $locale);
+        }
+
+        return $sitemap;
+    }
+
+    private static function addLocale(Sitemap $sitemap, string $locale): void
+    {
+        $isDefault = $locale === Ink::defaultLocale();
+        $published = fn (Builder $query) => $query->published()->inLocale($locale);
+
+        if (! $isDefault && ! Post::query()->published()->inLocale($locale)->exists()) {
+            return;
+        }
+
         $sitemap->add(
-            Url::create(route('blog.index'))
+            Url::create(route(Ink::routeName('index', $locale)))
                 ->setChangeFrequency(Url::CHANGE_FREQUENCY_DAILY)
                 ->setPriority(0.8)
         );
 
-        if (Route::has('blog.category')) {
+        if (Route::has(Ink::routeName('category', $locale))) {
             Category::query()
                 ->select(['id', 'slug'])
-                ->whereHas('posts', fn (Builder $query) => $query->published())
-                ->each(function (Category $category) use ($sitemap): void {
+                ->whereHas('posts', $published)
+                ->each(function (Category $category) use ($sitemap, $locale): void {
                     $sitemap->add(
-                        Url::create(route('blog.category', $category->slug))
+                        Url::create(route(Ink::routeName('category', $locale), $category->slug))
                             ->setChangeFrequency(Url::CHANGE_FREQUENCY_WEEKLY)
                             ->setPriority(0.6)
                     );
                 });
         }
 
-        if (Route::has('blog.show')) {
+        if (Route::has(Ink::routeName('show', $locale))) {
             Post::query()
-                ->select(['id', 'slug', 'published_at', 'updated_at'])
+                ->select(['id', 'slug', 'locale', 'translation_group', 'status', 'published_at', 'updated_at'])
                 ->published()
+                ->inLocale($locale)
                 ->latest('published_at')
                 ->each(function (Post $post) use ($sitemap): void {
-                    $sitemap->add(
-                        Url::create(route('blog.show', $post->slug))
-                            ->setLastModificationDate($post->updated_at)
-                            ->setChangeFrequency(Url::CHANGE_FREQUENCY_WEEKLY)
-                            ->setPriority(0.7)
-                    );
+                    $url = Url::create($post->getUrl())
+                        ->setLastModificationDate($post->updated_at)
+                        ->setChangeFrequency(Url::CHANGE_FREQUENCY_WEEKLY)
+                        ->setPriority(0.7);
+
+                    foreach ($post->alternateUrls() as $hreflang => $href) {
+                        $url->addAlternate($href, $hreflang);
+                    }
+
+                    $sitemap->add($url);
                 });
         }
 
-        if (Route::has('blog.tag') && config('ink.features.tags', false)) {
+        if (Route::has(Ink::routeName('tag', $locale)) && config('ink.features.tags', false)) {
             Tag::query()
                 ->select(['id', 'slug'])
-                ->whereHas('posts', fn (Builder $query) => $query->published())
-                ->each(function (Tag $tag) use ($sitemap): void {
+                ->whereHas('posts', $published)
+                ->each(function (Tag $tag) use ($sitemap, $locale): void {
                     $sitemap->add(
-                        Url::create(route('blog.tag', $tag->slug))
+                        Url::create(route(Ink::routeName('tag', $locale), $tag->slug))
                             ->setChangeFrequency(Url::CHANGE_FREQUENCY_WEEKLY)
                             ->setPriority(0.5)
                     );
                 });
         }
-
-        return $sitemap;
     }
 }

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
@@ -99,21 +100,66 @@ abstract class BlogTool extends Tool
     }
 
     /**
+     * The locale the post will carry after this call: the one in the request, else the
+     * post's own, else the install default.
+     */
+    protected function targetLocale(Request $request, ?Post $post = null): string
+    {
+        $locale = $request->get('locale');
+
+        return is_string($locale) && $locale !== ''
+            ? $locale
+            : ($post?->locale ?? Ink::defaultLocale());
+    }
+
+    /** @return array<string, list<mixed>> */
+    protected function localeRules(string $locale, ?Post $ignoring = null, bool $linking = false): array
+    {
+        return [
+            'locale' => ['nullable', 'string', Rule::in(Ink::locales()), function (string $attribute, mixed $value, Closure $fail) use ($ignoring, $linking): void {
+                if ($ignoring?->exists && $value !== $ignoring->locale && ! $linking && $ignoring->groupHasOtherIn((string) $value)) {
+                    $fail("Another post in this translation group already uses the \"{$value}\" locale.");
+                }
+            }],
+            'translation_of' => ['nullable', 'integer', function (string $attribute, mixed $value, Closure $fail) use ($locale, $ignoring): void {
+                $source = is_numeric($value) ? Post::find($value) : null;
+
+                if (! $source instanceof Post) {
+                    $fail('The post to translate does not exist.');
+
+                    return;
+                }
+
+                if ($ignoring?->is($source)) {
+                    $fail('A post cannot be a translation of itself.');
+
+                    return;
+                }
+
+                if ($source->hasVersionIn($locale, $ignoring)) {
+                    $fail("A \"{$locale}\" version of that post already exists.");
+                }
+            }],
+        ];
+    }
+
+    /**
      * Rejects a slug already worn by another live post.
      *
      * Trashed posts are excluded on purpose: the models release their slug
      * when soft-deleted, so refusing one here would block a slug the write
      * would in fact accept.
      */
-    protected function uniqueSlugRule(?Post $ignoring = null): Closure
+    protected function uniqueSlugRule(string $locale, ?Post $ignoring = null): Closure
     {
-        return function (string $attribute, mixed $value, Closure $fail) use ($ignoring): void {
+        return function (string $attribute, mixed $value, Closure $fail) use ($locale, $ignoring): void {
             if (! is_string($value) || $value === '') {
                 return;
             }
 
             $taken = Post::query()
                 ->where('slug', $value)
+                ->inLocale($locale)
                 ->when($ignoring?->exists, fn ($query) => $query->whereKeyNot($ignoring->getKey()))
                 ->exists();
 

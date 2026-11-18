@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Relaticle\Ink\Filament\Resources;
 
+use Closure;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
@@ -27,6 +28,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -35,11 +37,13 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rules\Unique;
 use RalphJSmit\Filament\SEO\SEO;
 use Relaticle\Ink\Enums\PostStatus;
 use Relaticle\Ink\Filament\Resources\PostResource\Pages\CreatePost;
 use Relaticle\Ink\Filament\Resources\PostResource\Pages\EditPost;
 use Relaticle\Ink\Filament\Resources\PostResource\Pages\ListPosts;
+use Relaticle\Ink\Ink;
 use Relaticle\Ink\Models\Post;
 
 class PostResource extends Resource
@@ -74,7 +78,10 @@ class PostResource extends Resource
 
                                 TextInput::make('slug')
                                     ->maxLength(255)
-                                    ->unique(ignoreRecord: true),
+                                    ->unique(
+                                        ignoreRecord: true,
+                                        modifyRuleUsing: fn (Unique $rule, Get $get): Unique => $rule->where('locale', $get('locale') ?? Ink::defaultLocale()),
+                                    ),
 
                                 MarkdownEditor::make('content')
                                     ->required()
@@ -114,6 +121,41 @@ class PostResource extends Resource
                                     ->dehydrateStateUsing(fn (bool $state): string => $state ? PostStatus::Published->value : PostStatus::Draft->value),
 
                                 DateTimePicker::make('published_at'),
+                            ]),
+
+                        Section::make('Language')
+                            ->visible(fn (): bool => count(Ink::locales()) > 1)
+                            ->schema([
+                                Select::make('locale')
+                                    ->options(fn (): array => collect(Ink::locales())->mapWithKeys(fn (string $locale): array => [$locale => strtoupper($locale)])->all())
+                                    ->default(fn (): string => Ink::defaultLocale())
+                                    ->required()
+                                    ->live()
+                                    ->rule(fn (Get $get, ?Post $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                                        if ($record?->exists && empty($get('translation_of')) && $value !== $record->locale && $record->groupHasOtherIn((string) $value)) {
+                                            $fail('Another post in this translation group already uses this language.');
+                                        }
+                                    }),
+
+                                Select::make('translation_of')
+                                    ->label('Translation of')
+                                    ->searchable()
+                                    ->dehydrated(false)
+                                    ->getSearchResultsUsing(fn (string $search, Get $get, ?Post $record): array => Post::query()
+                                        ->where('locale', '!=', $get('locale') ?? Ink::defaultLocale())
+                                        ->whereLike('title', "%{$search}%", caseSensitive: false)
+                                        ->when($record?->exists, fn (Builder $query) => $query->whereKeyNot($record->getKey()))
+                                        ->limit(50)
+                                        ->get()
+                                        ->mapWithKeys(fn (Post $post): array => [$post->getKey() => strtoupper($post->locale).': '.$post->title])
+                                        ->all())
+                                    ->getOptionLabelUsing(fn (mixed $value): ?string => Post::find($value)?->title)
+                                    ->rule(fn (Get $get, ?Post $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                                        if (Post::find($value)?->hasVersionIn($get('locale') ?? Ink::defaultLocale(), $record)) {
+                                            $fail('That post already has a version in this language.');
+                                        }
+                                    })
+                                    ->helperText('Link this post to the post it translates.'),
                             ]),
 
                         Section::make('Details')
@@ -170,6 +212,12 @@ class PostResource extends Resource
                     ->searchable()
                     ->sortable(),
 
+                TextColumn::make('locale')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => strtoupper($state))
+                    ->visible(fn (): bool => count(Ink::locales()) > 1)
+                    ->sortable(),
+
                 TextColumn::make('category.name')
                     ->searchable()
                     ->sortable(),
@@ -194,6 +242,9 @@ class PostResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('locale')
+                    ->options(fn (): array => collect(Ink::locales())->mapWithKeys(fn (string $locale): array => [$locale => strtoupper($locale)])->all())
+                    ->visible(fn (): bool => count(Ink::locales()) > 1),
                 SelectFilter::make('category')
                     ->relationship('category', 'name'),
                 TrashedFilter::make(),

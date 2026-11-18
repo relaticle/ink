@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Relaticle\Ink\Models\Concerns;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Relaticle\Ink\Support\ReclaimsTrashedSlugsAction;
 use Spatie\Sluggable\Actions\GenerateSlugAction;
@@ -39,6 +40,7 @@ trait ReclaimsTrashedSlugs
                 ->withGlobalScope(SoftDeletingScope::class, new SoftDeletingScope)
                 ->where($slugField, $slug)
                 ->when($model->exists, fn ($query) => $query->whereKeyNot($model->getKey()))
+                ->tap(fn ($query) => $model->scopeSlugQuery($query))
                 ->exists();
 
             if ($heldByLiveRecord) {
@@ -61,6 +63,7 @@ trait ReclaimsTrashedSlugs
                 ->withoutGlobalScopes()
                 ->where($slugField, $slug)
                 ->whereKeyNot($model->getKey())
+                ->tap(fn ($query) => $model->scopeSlugQuery($query))
                 ->exists();
 
             if (! $taken) {
@@ -79,6 +82,16 @@ trait ReclaimsTrashedSlugs
         return new ReclaimsTrashedSlugsAction;
     }
 
+    /** Applies the model's own `extraScope()` so a slug is unique only within that scope. */
+    public function scopeSlugQuery(Builder $query): void
+    {
+        $scope = $this->getSlugOptions()->extraScopeCallback;
+
+        if ($scope !== null) {
+            $query->where($scope);
+        }
+    }
+
     /**
      * Re-slug the trashed records sitting on this slug so a live record can
      * take it. They are moved aside rather than removed, since a restore has
@@ -94,6 +107,7 @@ trait ReclaimsTrashedSlugs
             ->withoutGlobalScopes()
             ->where($options->slugField, $slug)
             ->when($this->exists, fn ($query) => $query->whereKeyNot($this->getKey()))
+            ->tap(fn ($query) => $this->scopeSlugQuery($query))
             ->get();
 
         foreach ($occupants as $occupant) {

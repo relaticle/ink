@@ -68,6 +68,48 @@ final class Ink
         return is_string($url) && $url !== '' ? $url : null;
     }
 
+    public static function defaultLocale(): string
+    {
+        return (string) config('ink.default_locale', 'en');
+    }
+
+    /** @return list<string> */
+    public static function locales(): array
+    {
+        return array_values(array_unique([
+            self::defaultLocale(),
+            ...array_map('strval', (array) config('ink.locales', ['en'])),
+        ]));
+    }
+
+    public static function routeName(string $key, ?string $locale = null): string
+    {
+        $locale ??= self::defaultLocale();
+
+        return $locale === self::defaultLocale() ? "blog.{$key}" : "blog.{$locale}.{$key}";
+    }
+
+    /** The locale whose `$key` route is named `$routeName`, or null when it is none of them. */
+    public static function localeOfRoute(?string $routeName, string $key): ?string
+    {
+        foreach (self::locales() as $locale) {
+            if ($routeName === self::routeName($key, $locale)) {
+                return $locale;
+            }
+        }
+
+        return null;
+    }
+
+    public static function requestLocale(): string
+    {
+        $locale = request()->route()?->defaults['locale'] ?? null;
+
+        return is_string($locale) && in_array($locale, self::locales(), true)
+            ? $locale
+            : self::defaultLocale();
+    }
+
     public static function flushState(): void
     {
         self::$authorResolver = null;

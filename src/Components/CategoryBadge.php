@@ -13,6 +13,7 @@ class CategoryBadge extends Component
     public function __construct(
         public Category $category,
         public bool $linked = true,
+        public ?string $locale = null,
     ) {}
 
     public function render(): View
