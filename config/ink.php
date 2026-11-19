@@ -43,6 +43,7 @@ return [
         'tags' => false,
         'media_library' => false,
         'mcp' => false,
+        'url_uploads' => true,
     ],
 
     'mcp' => [

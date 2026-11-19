@@ -59,6 +59,10 @@ class UploadImageTool extends BlogTool
         $url = $validated['url'] ?? null;
         $data = $validated['data'] ?? null;
 
+        if ($url !== null && ! config('ink.features.url_uploads', true)) {
+            return Response::error('URL uploads are turned off on this blog. Send the image as base64 data.');
+        }
+
         if ($url !== null && $data !== null) {
             return Response::error('Provide either `url` or `data`, not both.');
         }
@@ -211,7 +215,7 @@ class UploadImageTool extends BlogTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'url' => $schema->string()->description('A fetchable http(s) URL to download the image from. Provide this or `data`, not both.'),
+            'url' => $schema->string()->description('A fetchable http(s) URL to download the image from. Provide this or `data`, not both. The host may turn URL uploads off, in which case send `data`.'),
             'data' => $schema->string()->description('Base64-encoded image bytes. Provide this or `url`, not both.'),
             'filename' => $schema->string()->description('Optional filename hint. The stored name and extension are always derived from the sniffed image content, not from this value.'),
             'alt' => $schema->string()->description('Alt text for the generated markdown snippet.'),

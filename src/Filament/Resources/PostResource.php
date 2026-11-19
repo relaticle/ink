@@ -48,6 +48,9 @@ use Relaticle\Ink\Models\Post;
 
 class PostResource extends Resource
 {
+    /** @var list<string> */
+    private const FEATURED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
     protected static ?string $model = Post::class;
 
     protected static ?string $recordTitleAttribute = 'title';
@@ -327,11 +330,11 @@ class PostResource extends Resource
         if ($useMediaLibrary) {
             return SpatieMediaLibraryFileUpload::make('featured_image')
                 ->collection('featured_image')
-                ->image();
+                ->acceptedFileTypes(self::FEATURED_IMAGE_TYPES);
         }
 
         return FileUpload::make('featured_image')
-            ->image()
+            ->acceptedFileTypes(self::FEATURED_IMAGE_TYPES)
             ->disk('public')
             ->directory('ink');
     }
