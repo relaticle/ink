@@ -22,6 +22,7 @@ Filament-native content publishing for blog, docs, and AI-citable articles. Ship
 - **Host-owned views** — point the `views` config map at your app's own views per action, without publishing; register `Ink::resolvePreviewEditUrlUsing()` to control the preview page's edit link
 - **Tags taxonomy** (opt-in via `features.tags`) — many-to-many `blog_post_tag` table, `TagResource` admin UI, public archive at `/blog/tag/{slug}`
 - **MediaLibrary integration** (opt-in via `features.media_library`) — when both the flag is on AND `spatie/laravel-medialibrary` is installed, the featured-image upload uses `SpatieMediaLibraryFileUpload` instead of the plain `FileUpload`. Falls back gracefully if MediaLibrary isn't installed.
+- **URL uploads** (on by default, `features.url_uploads`): the MCP `upload-image` tool can fetch an image from a URL. Set it to `false` to accept base64 `data` only. Featured images accept JPEG, PNG, GIF and WebP only.
 - **Sitemap Generator** — Route-aware sitemap integration via spatie/laravel-sitemap
 - **Reading-time, related-posts, and table-of-contents** helpers on the Post model
 
@@ -61,6 +62,7 @@ To get a working blog at `/blog` without writing any controllers, flip the featu
     'feed'          => true,   // adds /blog/feed (RSS 2.0)
     'tags'          => true,   // /blog/tag/{slug}, TagResource in admin
     'media_library' => true,   // SpatieMediaLibraryFileUpload (requires spatie/laravel-medialibrary)
+    'url_uploads'   => true,   // set false to refuse the `url` argument of the MCP upload-image tool (base64 `data` still works)
 ],
 
 'layout' => 'layouts.app',     // your host layout to extend
