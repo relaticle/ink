@@ -2,13 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.7.0] - 2026-11-20
+## [2.7.0] - 2026-11-19
 
 ### Added
 - Hosts can turn off URL image uploads with `ink.features.url_uploads` (default `true`, so nothing changes unless you set it). When it is off, `upload-image` answers a `url` argument with an error asking for base64 `data`, which keeps working.
 
 ### Changed
 - Featured images accept JPEG, PNG, GIF and WebP only, in both the plain upload field and the MediaLibrary field.
+- Featured images in other formats (SVG, AVIF, HEIC, BMP, TIFF) are now refused. Covers already stored are unaffected.
 
 ## [2.4.0] - 2026-08-14
 
