@@ -14,6 +14,7 @@ class Feed extends Component
     /** @param Collection<int, Post> $posts */
     public function __construct(
         public Collection $posts,
+        public ?string $locale = null,
     ) {}
 
     public function render(): View

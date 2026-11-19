@@ -55,10 +55,12 @@ class UpdatePostTool extends BlogTool
         /** @var Post $post */
         $post = $record;
 
+        $locale = $this->targetLocale($request, $post);
+
         $validated = $request->validate([
             'id' => ['required', 'integer'],
             'title' => ['nullable', 'string', 'max:255'],
-            'slug' => ['nullable', 'string', 'max:255', $this->uniqueSlugRule($post)],
+            'slug' => ['nullable', 'string', 'max:255', $this->uniqueSlugRule($locale, $post)],
             'content' => ['nullable', 'string'],
             'excerpt' => ['nullable', 'string', 'max:500'],
             'featured_image' => ['nullable', 'string', $this->featuredImagePathRule()],
@@ -67,6 +69,7 @@ class UpdatePostTool extends BlogTool
             'published_at' => ['nullable', 'date'],
             'seo_title' => ['nullable', 'string', 'max:60'],
             'seo_description' => ['nullable', 'string', 'max:160'],
+            ...$this->localeRules($locale, $post, $request->get('translation_of') !== null),
             ...$this->tagsRules(),
         ], [
             'id.required' => 'You must provide the post ID to update.',
@@ -83,6 +86,14 @@ class UpdatePostTool extends BlogTool
             'excerpt' => $validated['excerpt'] ?? null,
             'category_id' => $validated['category_id'] ?? null,
         ], fn ($value) => $value !== null);
+
+        if (isset($validated['locale'])) {
+            $data['locale'] = $validated['locale'];
+        }
+
+        if (isset($validated['translation_of'])) {
+            $data['translation_group'] = Post::findOrFail($validated['translation_of'])->ensureTranslationGroup();
+        }
 
         if ($request->has('featured_image')) {
             $data['featured_image'] = $validated['featured_image'] ?? null;
@@ -122,6 +133,7 @@ class UpdatePostTool extends BlogTool
             'id' => $post->id,
             'title' => $post->title,
             'slug' => $post->slug,
+            'locale' => $post->locale,
             'status' => $post->status->value,
             'category' => $post->category?->name,
             'featured_image' => $post->featured_image,
@@ -140,6 +152,8 @@ class UpdatePostTool extends BlogTool
             'id' => $schema->integer()->description('The post ID to update.')->required(),
             'title' => $schema->string()->description('New title.'),
             'slug' => $schema->string()->description('New URL slug. Changing this breaks existing links to the post. Must be unique among live posts; a slug held only by a deleted post is reusable.'),
+            'locale' => $schema->string()->description('New language of the post, one of the configured locales. Changing it moves the post to that language\'s URLs.'),
+            'translation_of' => $schema->integer()->description('ID of the post this one translates. Puts both in one translation group. The source must be in another locale and have no version in this locale yet.'),
             'content' => $schema->string()->description('New content in Markdown. Converted to HTML on save.'),
             'excerpt' => $schema->string()->description('New excerpt.'),
             'featured_image' => $schema->string()->description('New featured image path, as returned by upload-image (e.g. "ink/xxx.webp"). Pass null to clear it.'),

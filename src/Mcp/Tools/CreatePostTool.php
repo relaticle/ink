@@ -37,10 +37,11 @@ class CreatePostTool extends BlogTool
 
     protected function run(Request $request, ?Model $record): Response|ResponseFactory
     {
+        $locale = $this->targetLocale($request);
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
-            'slug' => ['nullable', 'string', 'max:255', $this->uniqueSlugRule()],
+            'slug' => ['nullable', 'string', 'max:255', $this->uniqueSlugRule($locale)],
             'content' => ['required', 'string'],
             'excerpt' => ['required', 'string', 'max:500'],
             'featured_image' => ['nullable', 'string', $this->featuredImagePathRule()],
@@ -49,6 +50,7 @@ class CreatePostTool extends BlogTool
             'published_at' => ['nullable', 'date'],
             'seo_title' => ['nullable', 'string', 'max:60'],
             'seo_description' => ['nullable', 'string', 'max:160'],
+            ...$this->localeRules($locale),
             ...$this->tagsRules(),
         ], [
             'title.required' => 'A title is required to create a post.',
@@ -66,6 +68,10 @@ class CreatePostTool extends BlogTool
         $post = Post::create([
             'title' => $validated['title'],
             'slug' => $validated['slug'] ?? null,
+            'locale' => $locale,
+            'translation_group' => isset($validated['translation_of'])
+                ? Post::findOrFail($validated['translation_of'])->ensureTranslationGroup()
+                : null,
             'content' => $validated['content'],
             'excerpt' => $validated['excerpt'],
             'featured_image' => $validated['featured_image'] ?? null,
@@ -92,6 +98,7 @@ class CreatePostTool extends BlogTool
             'id' => $post->id,
             'title' => $post->title,
             'slug' => $post->slug,
+            'locale' => $post->locale,
             'status' => $post->status->value,
             'category' => $post->category?->name,
             'featured_image' => $post->featured_image,
@@ -109,6 +116,8 @@ class CreatePostTool extends BlogTool
         return [
             'title' => $schema->string()->description('The post title.')->required(),
             'slug' => $schema->string()->description('URL slug. Generated from the title when omitted. Must be unique among live posts; a slug held only by a deleted post is reusable.'),
+            'locale' => $schema->string()->description('Language of the post, one of the configured locales. Defaults to the blog default locale. The slug is unique per locale.'),
+            'translation_of' => $schema->integer()->description('ID of the post this one translates. Puts both in one translation group. The source must be in another locale and have no version in this locale yet.'),
             'content' => $schema->string()->description('The post content in Markdown. Converted to HTML on save.')->required(),
             'excerpt' => $schema->string()->description('Short excerpt/summary of the post.')->required(),
             'featured_image' => $schema->string()->description('Featured image path, as returned by upload-image (e.g. "ink/xxx.webp").'),

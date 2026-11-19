@@ -9,6 +9,15 @@ return [
     'layout' => 'layouts.app',
 
     /*
+     * Languages the blog publishes in. The default locale keeps the unprefixed
+     * routes (`/blog/...`, names `blog.*`), every other locale is served under
+     * `/{locale}/{prefix}/...` with names `blog.{locale}.*`.
+     */
+    'locales' => ['en'],
+
+    'default_locale' => 'en',
+
+    /*
      * Render your own views instead of the package's. Each null falls back to
      * the matching `ink::pages.*` view.
      */
@@ -34,6 +43,7 @@ return [
         'tags' => false,
         'media_library' => false,
         'mcp' => false,
+        'url_uploads' => true,
     ],
 
     'mcp' => [

@@ -24,10 +24,12 @@ use RalphJSmit\Laravel\SEO\Schema\ArticleSchema;
 use RalphJSmit\Laravel\SEO\Schema\BreadcrumbListSchema;
 use RalphJSmit\Laravel\SEO\Schema\FaqPageSchema;
 use RalphJSmit\Laravel\SEO\SchemaCollection;
+use RalphJSmit\Laravel\SEO\Support\AlternateTag;
 use RalphJSmit\Laravel\SEO\Support\HasSEO;
 use RalphJSmit\Laravel\SEO\Support\SEOData;
 use Relaticle\Ink\Database\Factories\PostFactory;
 use Relaticle\Ink\Enums\PostStatus;
+use Relaticle\Ink\Ink;
 use Relaticle\Ink\Models\Concerns\ReclaimsTrashedSlugs;
 use Relaticle\Ink\Support\ImageAttributes;
 use Relaticle\Ink\Support\SchemaExtractor;
@@ -50,6 +52,8 @@ class Post extends Model
     protected $fillable = [
         'title',
         'slug',
+        'locale',
+        'translation_group',
         'content',
         'excerpt',
         'featured_image',
@@ -65,6 +69,14 @@ class Post extends Model
             'status' => PostStatus::class,
             'published_at' => 'datetime',
         ];
+    }
+
+    protected static function booting(): void
+    {
+        // Registered before HasSlug's creating listener so slug uniqueness is checked in the final locale.
+        static::creating(function (Post $post): void {
+            $post->locale ??= Ink::defaultLocale();
+        });
     }
 
     protected static function booted(): void
@@ -86,6 +98,7 @@ class Post extends Model
         return SlugOptions::create()
             ->generateSlugsFrom('title')
             ->saveSlugsTo('slug')
+            ->extraScope(fn (Builder $query) => $query->where('locale', $this->locale))
             ->doNotGenerateSlugsOnUpdate();
     }
 
@@ -118,6 +131,12 @@ class Post extends Model
         }
 
         return ['label' => 'Published', 'color' => 'success'];
+    }
+
+    #[Scope]
+    protected function inLocale(Builder $query, string $locale): void
+    {
+        $query->where($query->qualifyColumn('locale'), $locale);
     }
 
     #[Scope]
@@ -301,6 +320,98 @@ class Post extends Model
         return max(1, (int) ceil($words / $wordsPerMinute));
     }
 
+    /** Posts in this post's translation group written in another language, in any status. */
+    public function siblings(): Builder
+    {
+        return static::query()
+            ->where('translation_group', $this->translation_group)
+            ->where('locale', '!=', $this->locale)
+            ->whereKeyNot($this->getKey());
+    }
+
+    public function hasVersionIn(string $locale, ?Post $except = null): bool
+    {
+        if ($this->locale === $locale) {
+            return true;
+        }
+
+        return $this->translation_group !== null && static::query()
+            ->where('translation_group', $this->translation_group)
+            ->inLocale($locale)
+            ->when($except?->exists, fn (Builder $query) => $query->whereKeyNot($except->getKey()))
+            ->exists();
+    }
+
+    public function groupHasOtherIn(string $locale): bool
+    {
+        return $this->translation_group !== null && static::query()
+            ->where('translation_group', $this->translation_group)
+            ->inLocale($locale)
+            ->whereKeyNot($this->getKey())
+            ->exists();
+    }
+
+    /** @return Collection<int, Post> */
+    public function translations(): Collection
+    {
+        if ($this->translation_group === null) {
+            return new Collection;
+        }
+
+        return $this->siblings()->published()->get();
+    }
+
+    public function ensureTranslationGroup(): string
+    {
+        if ($this->translation_group !== null) {
+            return $this->translation_group;
+        }
+
+        $group = (string) Str::uuid();
+
+        static::query()->whereKey($this->getKey())->update(['translation_group' => $group]);
+        $this->setAttribute('translation_group', $group)->syncOriginalAttribute('translation_group');
+
+        return $group;
+    }
+
+    /** @return array<string, string> hreflang => url, empty when the post has no published translation */
+    public function alternateUrls(): array
+    {
+        if (! $this->isLive()) {
+            return [];
+        }
+
+        $translations = $this->translations();
+
+        if ($translations->isEmpty()) {
+            return [];
+        }
+
+        $urls = [];
+
+        foreach ($translations->prepend($this) as $version) {
+            $url = $version->getUrl();
+
+            if ($url !== '#') {
+                $urls[str_replace('_', '-', $version->locale)] = $url;
+            }
+        }
+
+        $default = str_replace('_', '-', Ink::defaultLocale());
+
+        if (isset($urls[$default])) {
+            $urls['x-default'] = $urls[$default];
+        }
+
+        return $urls;
+    }
+
+    private function isLive(): bool
+    {
+        return $this->status === PostStatus::Published && ! $this->published_at?->isFuture();
+    }
+
     public function relatedPosts(int $limit = 3): Builder
     {
         // Eager-load category: every renderer of a related post shows its badge, and a
@@ -308,6 +419,7 @@ class Post extends Model
         return static::query()
             ->with('category')
             ->published()
+            ->inLocale($this->locale)
             ->where($this->getKeyName(), '!=', $this->getKey())
             ->when(
                 $this->category_id,
@@ -320,9 +432,11 @@ class Post extends Model
 
     public function getUrl(): string
     {
-        if ($this->status === PostStatus::Published && ! $this->published_at?->isFuture()) {
-            return Route::has('blog.show')
-                ? route('blog.show', $this->slug)
+        if ($this->isLive()) {
+            $route = Ink::routeName('show', $this->locale);
+
+            return Route::has($route)
+                ? route($route, $this->slug)
                 : '#';
         }
 
@@ -360,6 +474,18 @@ class Post extends Model
         ) ?? $html;
     }
 
+    /** @return list<AlternateTag>|null */
+    private function alternateTags(): ?array
+    {
+        $tags = [];
+
+        foreach ($this->alternateUrls() as $hreflang => $url) {
+            $tags[] = new AlternateTag($hreflang, $url);
+        }
+
+        return $tags === [] ? null : $tags;
+    }
+
     public function getDynamicSEOData(): SEOData
     {
         $schema = SchemaCollection::initialize()
@@ -387,12 +513,15 @@ class Post extends Model
             ->addBreadcrumbs(function (BreadcrumbListSchema $breadcrumbs): BreadcrumbListSchema {
                 $crumbs = ['Home' => url('/')];
 
-                if (Route::has('blog.index')) {
-                    $crumbs['Blog'] = route('blog.index');
+                $indexRoute = Ink::routeName('index', $this->locale);
+                $categoryRoute = Ink::routeName('category', $this->locale);
+
+                if (Route::has($indexRoute)) {
+                    $crumbs['Blog'] = route($indexRoute);
                 }
 
-                if ($this->category && Route::has('blog.category')) {
-                    $crumbs[$this->category->name] = route('blog.category', $this->category->slug);
+                if ($this->category && Route::has($categoryRoute)) {
+                    $crumbs[$this->category->name] = route($categoryRoute, $this->category->slug);
                 }
 
                 return $breadcrumbs->prependBreadcrumbs($crumbs);
@@ -425,6 +554,7 @@ class Post extends Model
             ),
             section: $this->category?->name,
             type: 'article',
+            alternates: $this->alternateTags(),
             schema: $schema,
         );
     }

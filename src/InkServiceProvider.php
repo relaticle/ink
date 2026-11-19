@@ -91,11 +91,11 @@ class InkServiceProvider extends PackageServiceProvider
                 $post = $param instanceof Post
                     ? $param
                     : (is_string($param)
-                        ? Post::query()->published()->where('slug', $param)->first()
+                        ? Post::query()->published()->inLocale(Ink::requestLocale())->where('slug', $param)->first()
                         : null);
 
                 if (! $post instanceof Post && ($slug = $route?->parameter('slug')) !== null) {
-                    $post = Post::query()->published()->where('slug', $slug)->first();
+                    $post = Post::query()->published()->inLocale(Ink::requestLocale())->where('slug', $slug)->first();
                 }
 
                 if (! $post instanceof Post) {
@@ -129,9 +129,10 @@ class InkServiceProvider extends PackageServiceProvider
                 $route = request()->route();
                 $routeName = $route?->getName();
 
-                $isIndex = $routeName === 'blog.index';
-                $isCategory = $routeName === 'blog.category';
-                $isTag = $routeName === 'blog.tag';
+                $indexLocale = Ink::localeOfRoute($routeName, 'index');
+                $isIndex = $indexLocale !== null;
+                $isCategory = Ink::localeOfRoute($routeName, 'category') !== null;
+                $isTag = Ink::localeOfRoute($routeName, 'tag') !== null;
 
                 if (! ($isIndex || $isCategory || $isTag)) {
                     return $tags;
@@ -168,7 +169,7 @@ class InkServiceProvider extends PackageServiceProvider
                     $blog = array_filter([
                         '@context' => 'https://schema.org',
                         '@type' => 'Blog',
-                        'url' => route('blog.index'),
+                        'url' => route(Ink::routeName('index', $indexLocale)),
                         'name' => $publisher && ! empty($publisher['name']) ? "{$publisher['name']} Blog" : 'Blog',
                         'publisher' => $publisherEntity,
                     ], fn ($value) => $value !== null);

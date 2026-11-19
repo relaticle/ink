@@ -20,3 +20,7 @@
     <meta name="twitter:image" content="{{ asset('storage/' . $post->featured_image) }}" />
 @endif
 <link rel="canonical" href="{{ url()->current() }}" />
+
+@foreach($post->alternateUrls() as $hreflang => $href)
+    <link rel="alternate" hreflang="{{ $hreflang }}" href="{{ $href }}" />
+@endforeach

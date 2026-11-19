@@ -234,3 +234,34 @@ test('a token without posts:create is rejected', function () {
         ->tool(UploadImageTool::class, ['data' => PNG_BASE64])
         ->assertSee('Token missing required ability: posts:create');
 });
+
+it('refuses url uploads when url_uploads is off', function () {
+    config()->set('ink.features.url_uploads', false);
+    Http::fake();
+
+    BlogServer::actingAs(tokenUser())->tool(UploadImageTool::class, ['url' => 'https://example.test/photo.png'])
+        ->assertHasErrors(['URL uploads are turned off on this blog. Send the image as base64 data.']);
+
+    Http::assertNothingSent();
+    expect(Storage::disk('public')->allFiles())->toBeEmpty();
+});
+
+it('still accepts base64 uploads when url_uploads is off', function () {
+    config()->set('ink.features.url_uploads', false);
+
+    $path = uploadAndCapturePath(['data' => PNG_BASE64]);
+
+    Storage::disk('public')->assertExists($path);
+});
+
+it('still accepts url uploads by default', function () {
+    Http::preventStrayRequests();
+    Http::fake([
+        'https://example.test/photo.png' => Http::response(base64_decode(PNG_BASE64), 200, ['Content-Type' => 'image/png']),
+    ]);
+
+    $path = uploadAndCapturePath(['url' => 'https://example.test/photo.png']);
+
+    Storage::disk('public')->assertExists($path);
+    Http::assertSent(fn ($request) => $request->url() === 'https://example.test/photo.png');
+});

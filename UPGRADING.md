@@ -1,5 +1,37 @@
 # Upgrading
 
+## To 2.6 from 2.5
+
+No breaking changes. With the default config (`ink.locales` is `['en']`) every route name, URL,
+MCP field and rendered page is unchanged.
+
+### Run the new migration
+
+`blog_posts` gains `locale` (existing rows become `en`) and a nullable `translation_group`. The
+unique index on `slug` becomes unique on `(locale, slug)`.
+
+If you set `ink.default_locale` to anything but `en`, update your existing rows to that locale,
+because the unprefixed routes only list posts in the default locale:
+
+```php
+Post::query()->update(['locale' => config('ink.default_locale')]);
+```
+
+### Languages
+
+Set `ink.locales` to publish in more than one language. See [Languages](https://relaticle.github.io/ink/essentials/languages).
+Each non-default locale registers `/{locale}/{prefix}/...` routes named `blog.{locale}.index|show|category|tag|feed`.
+Run `php artisan route:clear` after changing the list if you cache routes.
+
+Hosts that render their own views or call `route('blog.show', ...)` for a post in another language
+should use `$post->getUrl()` instead. A host that overrides the feed view gets a `$locale` variable.
+
+### MCP
+
+`create-post-tool` and `update-post-tool` accept `locale` and `translation_of`. `list-posts-tool`
+accepts a `locale` filter. `get-post-tool` returns `locale` and `translations`, and a slug lookup
+takes an optional `locale` (default locale when omitted). Every post payload now includes `locale`.
+
 ## To 2.5 from 2.4
 
 No breaking changes — 2.5 is additive.

@@ -105,3 +105,14 @@ test('PostResource featured image field falls back to FileUpload when MediaLibra
 
     expect($field)->toBeInstanceOf(FileUpload::class);
 });
+
+it('refuses an svg featured image', function () {
+    config()->set('ink.features.media_library', false);
+
+    $field = (new ReflectionMethod(PostResource::class, 'featuredImageField'))
+        ->invoke(null);
+
+    expect($field->getAcceptedFileTypes())
+        ->toBe(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+        ->not->toContain('image/svg+xml');
+});

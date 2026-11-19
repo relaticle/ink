@@ -44,6 +44,10 @@ class ListPostsTool extends BlogTool
             $query->where('status', $status);
         }
 
+        if (is_string($locale = $request->get('locale')) && $locale !== '') {
+            $query->inLocale($locale);
+        }
+
         if ($categoryId = $request->get('category_id')) {
             $query->where('category_id', $categoryId);
         }
@@ -66,6 +70,7 @@ class ListPostsTool extends BlogTool
                 'id' => $post->id,
                 'title' => $post->title,
                 'slug' => $post->slug,
+                'locale' => $post->locale,
                 'excerpt' => $post->excerpt,
                 'status' => $post->status->value,
                 'category' => $post->category?->name,
@@ -90,6 +95,8 @@ class ListPostsTool extends BlogTool
             'status' => $schema->string()
                 ->enum(array_column(PostStatus::cases(), 'value'))
                 ->description('Filter by post status.'),
+            'locale' => $schema->string()
+                ->description('Filter by post language.'),
             'category_id' => $schema->integer()
                 ->description('Filter by category ID.'),
             'search' => $schema->string()

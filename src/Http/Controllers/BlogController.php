@@ -22,9 +22,12 @@ class BlogController extends Controller
 
         $searchQuery = trim((string) $request->query('q', ''));
 
+        $locale = Ink::requestLocale();
+
         $query = Post::query()
             ->with(['category', 'author', 'seo'])
-            ->published();
+            ->published()
+            ->inLocale($locale);
 
         if ($searchQuery !== '') {
             $query->search($searchQuery);
@@ -38,6 +41,7 @@ class BlogController extends Controller
         seo()->for(BlogListingSeo::forIndex(
             page: (int) $request->query('page', 1),
             searchQuery: $request->query('q'),
+            locale: $locale,
         ));
 
         return view($this->viewFor('index'), [
@@ -50,6 +54,7 @@ class BlogController extends Controller
         $post = Post::query()
             ->with(['category', 'author', 'seo', 'tags'])
             ->where('slug', $slug)
+            ->inLocale(Ink::requestLocale())
             ->published()
             ->firstOrFail();
 
@@ -67,17 +72,20 @@ class BlogController extends Controller
     {
         $category = Category::where('slug', $slug)->firstOrFail();
         $perPage = (int) config('ink.per_page', 12);
+        $locale = Ink::requestLocale();
 
         $posts = Post::query()
             ->with(['category', 'author', 'seo'])
             ->where('category_id', $category->id)
             ->published()
+            ->inLocale($locale)
             ->latest('published_at')
             ->paginate($perPage);
 
         seo()->for(BlogListingSeo::forCategory(
             category: $category,
             page: (int) request()->query('page', 1),
+            locale: $locale,
         ));
 
         return view($this->viewFor('category'), [
@@ -107,17 +115,20 @@ class BlogController extends Controller
 
         $tag = Tag::where('slug', $slug)->firstOrFail();
         $perPage = (int) config('ink.per_page', 12);
+        $locale = Ink::requestLocale();
 
         $posts = Post::query()
             ->with(['category', 'author', 'seo'])
             ->whereHas('tags', fn ($q) => $q->where('blog_tags.id', $tag->id))
             ->published()
+            ->inLocale($locale)
             ->latest('published_at')
             ->paginate($perPage);
 
         seo()->for(BlogListingSeo::forTag(
             tag: $tag,
             page: (int) request()->query('page', 1),
+            locale: $locale,
         ));
 
         return view($this->viewFor('tag'), [
@@ -128,15 +139,18 @@ class BlogController extends Controller
 
     public function feed(): Response
     {
+        $locale = Ink::requestLocale();
+
         $posts = Post::query()
             ->with(['category', 'author', 'seo'])
             ->published()
+            ->inLocale($locale)
             ->latest('published_at')
             ->limit(20)
             ->get();
 
         return response()
-            ->view($this->viewFor('feed'), ['posts' => $posts])
+            ->view($this->viewFor('feed'), ['posts' => $posts, 'locale' => $locale])
             ->header('Content-Type', 'application/rss+xml; charset=UTF-8');
     }
 
