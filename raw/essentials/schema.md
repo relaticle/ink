@@ -1,3 +1,8 @@
+---
+title: "Schema"
+description: "Automatic JSON-LD schema emission for posts and listings."
+canonical_url: "https://relaticle.github.io/essentials/schema"
+---
 # Schema
 
 > Automatic JSON-LD schema emission for posts and listings.
@@ -208,3 +213,8 @@ The `BlogPosting` + `BreadcrumbList` schemas remain on regardless — they're co
 ## Validate your schema
 
 After publishing, paste a post URL into [Google Rich Results Test](https://search.google.com/test/rich-results) or the [Schema.org Validator](https://validator.schema.org/) to confirm zero errors.
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

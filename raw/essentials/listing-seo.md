@@ -1,3 +1,8 @@
+---
+title: "Listing SEO"
+description: "Per-page canonicals, titles, and metadata for listing routes."
+canonical_url: "https://relaticle.github.io/essentials/listing-seo"
+---
 # Listing SEO
 
 > Per-page canonicals, titles, and metadata for listing routes.
@@ -137,3 +142,8 @@ The package ships a numbered, aria-labeled pagination view at `ink::pagination.b
 ```bash
 php artisan vendor:publish --tag=ink-views
 ```
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

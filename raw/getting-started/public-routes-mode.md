@@ -1,3 +1,8 @@
+---
+title: "Public-routes mode"
+description: "Get a working blog at /blog without writing controllers — opt in via config flags."
+canonical_url: "https://relaticle.github.io/getting-started/public-routes-mode"
+---
 # Public-routes mode
 
 > Get a working blog at /blog without writing controllers — opt in via config flags.
@@ -177,7 +182,7 @@ The page views extend the layout you set in `'layout'`. It must define a `@yield
 </html>
 ```
 
-If your layout uses a different slot mechanism (e.g. Blade components with `{{ $slot }}`), point the [`views` config map](/essentials/host-owned-views) at views of your own — see the next section.
+If your layout uses a different slot mechanism (e.g. Blade components with `{{ $slot }}`), point the [`views` config map](https://relaticle.github.io/essentials/host-owned-views) at views of your own — see the next section.
 
 ## Customizing pages
 
@@ -191,7 +196,7 @@ Point the `views` config map at views your app already owns, per action:
 ```
 
 Any key left `null` keeps rendering the package's own `ink::pages.*` view. See
-[Host-Owned Views](/essentials/host-owned-views) for the full data each action passes and
+[Host-Owned Views](https://relaticle.github.io/essentials/host-owned-views) for the full data each action passes and
 for wiring the preview "edit this post" link.
 
 Publishing (`php artisan vendor:publish --tag=ink-views`) also works — Laravel resolves
@@ -315,4 +320,9 @@ flag.
 </tbody>
 </table>
 
-If you outgrow public-routes mode, flip the flag back to `false` and write your own controllers — see [Frontend Setup (headless)](/getting-started/frontend-setup).
+If you outgrow public-routes mode, flip the flag back to `false` and write your own controllers — see [Frontend Setup (headless)](https://relaticle.github.io/getting-started/frontend-setup).
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

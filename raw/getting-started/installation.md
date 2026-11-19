@@ -1,3 +1,8 @@
+---
+title: "Installation"
+description: "Install Ink in your Laravel application."
+canonical_url: "https://relaticle.github.io/getting-started/installation"
+---
 # Installation
 
 > Install Ink in your Laravel application.
@@ -93,7 +98,7 @@ The package ships **two install modes**:
     </td>
     
     <td>
-      <a href="/getting-started/frontend-setup">
+      <a href="https://relaticle.github.io/getting-started/frontend-setup">
         Frontend Setup (headless)
       </a>
     </td>
@@ -115,7 +120,7 @@ The package ships **two install modes**:
     </td>
     
     <td>
-      <a href="/getting-started/public-routes-mode">
+      <a href="https://relaticle.github.io/getting-started/public-routes-mode">
         Public-routes mode
       </a>
     </td>
@@ -163,7 +168,7 @@ return [
 ];
 ```
 
-See [Configuration](/essentials/configuration) for the full reference.
+See [Configuration](https://relaticle.github.io/essentials/configuration) for the full reference.
 
 ## Morph Map
 
@@ -206,3 +211,8 @@ Then enable public-routes mode in config:
 ```
 
 No data migration needed.
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

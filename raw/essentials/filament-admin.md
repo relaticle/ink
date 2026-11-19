@@ -1,3 +1,8 @@
+---
+title: "Filament Admin"
+description: "Managing blog posts, categories, and tags in the Filament admin panel."
+canonical_url: "https://relaticle.github.io/essentials/filament-admin"
+---
 # Filament Admin
 
 > Managing blog posts, categories, and tags in the Filament admin panel.
@@ -370,7 +375,7 @@ Appears in the Blog navigation group when `features.tags` is enabled. Mirrors th
 
 When the flag is off, the resource class still exists but `shouldRegisterNavigation()` returns `false` so it doesn't appear in the sidebar.
 
-See the [Tags Taxonomy](/essentials/tags) page for full schema and usage.
+See the [Tags Taxonomy](https://relaticle.github.io/essentials/tags) page for full schema and usage.
 
 ## Plugin Registration
 
@@ -383,3 +388,8 @@ $panel->plugins([
 ```
 
 The plugin auto-discovers `PostResource`, `CategoryResource`, and `TagResource` under the "Blog" navigation group. Resources hidden by feature flags don't appear in the sidebar — they're still resolvable for tests and direct URL access.
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

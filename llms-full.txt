@@ -1,483 +1,38 @@
-# Installation
+# Contributing
 
-## Requirements
+> How to contribute to Ink.
 
-- **PHP:** 8.4+
-- **Laravel:** 12+
-- **Filament:** 5.x
-- **Database:** PostgreSQL, MySQL, SQLite
+Contributions are welcome! Here's how to get started:
 
-## Quick Setup
+1. Fork the repository
+2. Create a feature branch (`feat/my-feature`)
+3. Make your changes
+4. Run tests and static analysis
+5. Submit a pull request
 
-::steps
-### Install Package
-
-```bash [Terminal]
-composer require relaticle/ink
-```
-
-  :::alert{type="info"}
-  For private repositories, add the VCS repository to your `composer.json` first:
-
-  ```json [composer.json]
-  "repositories": [
-      {"type": "vcs", "url": "git@github.com:relaticle/ink.git"}
-  ]
-  ```
-  :::
-
-### Run Migrations
+## Development Setup
 
 ```bash [Terminal]
-php artisan migrate
+git clone git@github.com:relaticle/ink.git
+cd ink
+composer install
 ```
 
-This creates `blog_posts`, `blog_categories`, `blog_tags`, and `blog_post_tag` tables. Tag tables are empty unless you enable the `tags` feature.
+## Code Style
 
-### Register Filament Plugin
+Follow PSR-12 and Laravel conventions. All files must have `declare(strict_types=1)`.
 
-```php [AppPanelProvider.php]
-use Relaticle\Ink\InkPlugin;
 
-$panel->plugins([
-    InkPlugin::make(),
-]);
-```
+# License
 
-### Publish Config (optional)
+> License information.
 
-```bash [Terminal]
-php artisan vendor:publish --tag=ink-config
-```
-::
-
-**Done!** Visit your Filament panel — you'll see the Blog section with Posts and Categories.
-
-## Pick your install mode
-
-The package ships **two install modes**:
-
-| Mode                            | When to use                                                                  | Doc                                                                                         |
-| ------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **Headless (default)**          | You want the Blade components and admin, but full control over routing/views | [Frontend Setup (headless)](https://relaticle.github.io/ink/getting-started/frontend-setup) |
-| **Public-routes mode (opt-in)** | You want a working blog at `/blog` without writing a single controller       | [Public-routes mode](https://relaticle.github.io/ink/getting-started/public-routes-mode)    |
-
-Most teams porting from the Tapix/FilaForms internal blog packages want public-routes mode — it ships the same flow they had, just behind a flag.
-
-## Default config
-
-After publishing, `config/ink.php` looks like this. Everything is opt-in — defaults match the headless mode, so the package is a no-op until you flip a flag:
-
-```php [config/ink.php]
-return [
-    'prefix' => 'blog',
-    'layout' => 'layouts.app',
-    'author_model' => \App\Models\User::class,
-    'per_page' => 12,
-
-    'features' => [
-        'public_routes' => false,  // /blog, /blog/{slug}, /blog/category/{slug}, signed /blog/preview/{post}
-        'feed'          => false,  // /blog/feed (RSS 2.0)
-        'sitemap'       => false,  // helper for spatie/laravel-sitemap
-        'tags'          => false,  // /blog/tag/{slug}, TagResource admin
-        'media_library' => false,  // SpatieMediaLibraryFileUpload (requires spatie/laravel-medialibrary)
-    ],
-
-    'feed' => [
-        'title' => null,         // falls back to config('app.name')
-        'description' => null,
-        'author_email' => null,  // RSS <author> email
-    ],
-
-    'publisher' => [
-        'name' => null,    // Organization name (JSON-LD)
-        'url' => null,
-        'logo' => null,    // Path to logo (used with asset())
-    ],
-
-    'tables' => [
-        'posts' => 'blog_posts',
-        'categories' => 'blog_categories',
-    ],
-];
-```
-
-See [Configuration](https://relaticle.github.io/ink/essentials/configuration) for the full reference.
-
-## Morph Map
-
-If your app enforces morph maps, register the blog models:
-
-```php [AppServiceProvider.php]
-Relation::enforceMorphMap([
-    // ...existing entries
-    'blog_post' => \Relaticle\Ink\Models\Post::class,
-    'blog_category' => \Relaticle\Ink\Models\Category::class,
-    'blog_tag' => \Relaticle\Ink\Models\Tag::class,
-]);
-```
-
-## SEO Migration
-
-The package depends on `ralphjsmit/laravel-seo`. Publish its migration:
-
-```bash [Terminal]
-php artisan vendor:publish --tag=seo-migrations
-php artisan migrate
-```
-
-## Upgrading from the Tapix/FilaForms internal blog packages
-
-The schema is identical (`blog_posts` and `blog_categories` table names match). To swap:
-
-```bash [Terminal]
-composer remove tapix/blog        # or filaforms/blog
-composer require relaticle/ink
-```
-
-Then enable public-routes mode in config:
-
-```php
-'features' => [
-    'public_routes' => true,
-    'feed' => true,
-],
-```
-
-No data migration needed.
-
-
-# Frontend Setup (headless)
-
-::alert{type="info"}
-**Want a working blog without writing controllers?**
-
- See 
-
-[Public-routes mode](https://relaticle.github.io/ink/getting-started/public-routes-mode)
-
- — flip a config flag and you're done. This page covers the 
-
-**headless mode**
-
- for hosts who want full control.
-::
-
-In headless mode the package ships **no routes, no controllers, no page views**. You wire your own routing and use the provided Blade components.
-
-## Create routes
-
-```php [routes/web.php]
-use App\Http\Controllers\BlogController;
-
-Route::prefix('ink')->name('blog.')->group(function () {
-    Route::get('/', [BlogController::class, 'index'])->name('index');
-    Route::get('/feed', [BlogController::class, 'feed'])->name('feed');
-    Route::get('/category/{slug}', [BlogController::class, 'category'])->name('category');
-    Route::get('/tag/{slug}', [BlogController::class, 'tag'])->name('tag');
-    Route::get('/preview/{post}', [BlogController::class, 'preview'])
-        ->name('preview')->middleware('signed');
-    Route::get('/{slug}', [BlogController::class, 'show'])->name('show');
-});
-```
-
-The route names matter — the package's URL helpers and SEO components check for them via `Route::has(...)` and fall back gracefully when missing.
-
-## Create controller
-
-```php [app/Http/Controllers/BlogController.php]
-use Relaticle\Ink\Models\Category;
-use Relaticle\Ink\Models\Post;
-use Relaticle\Ink\Models\Tag;
-
-final readonly class BlogController
-{
-    public function index(): View
-    {
-        $posts = Post::query()
-            ->published()
-            ->with(['category', 'author', 'seo'])
-            ->latest('published_at')
-            ->paginate(config('ink.per_page', 12));
-
-        return view('blog.index', compact('posts'));
-    }
-
-    public function show(string $slug): View
-    {
-        $post = Post::query()
-            ->published()
-            ->with(['category', 'author', 'seo'])
-            ->where('slug', $slug)
-            ->firstOrFail();
-
-        $relatedPosts = $post->relatedPosts()->get();
-
-        return view('blog.show', compact('post', 'relatedPosts'));
-    }
-
-    public function category(string $slug): View
-    {
-        $category = Category::where('slug', $slug)->firstOrFail();
-        $posts = Post::query()
-            ->where('category_id', $category->id)
-            ->published()
-            ->with(['category', 'author', 'seo'])
-            ->latest('published_at')
-            ->paginate(config('ink.per_page', 12));
-
-        return view('blog.category', compact('category', 'posts'));
-    }
-
-    public function tag(string $slug): View
-    {
-        $tag = Tag::where('slug', $slug)->firstOrFail();
-        $posts = Post::query()
-            ->whereHas('tags', fn ($q) => $q->where('blog_tags.id', $tag->id))
-            ->published()
-            ->with(['category', 'author', 'seo'])
-            ->latest('published_at')
-            ->paginate(config('ink.per_page', 12));
-
-        return view('blog.tag', compact('tag', 'posts'));
-    }
-
-    public function preview(Post $post): View
-    {
-        return view('blog.preview', ['post' => $post->loadMissing(['category', 'author', 'seo'])]);
-    }
-
-    public function feed(): Response
-    {
-        $posts = Post::query()
-            ->published()
-            ->with(['category', 'author'])
-            ->latest('published_at')
-            ->limit(20)
-            ->get();
-
-        return response()
-            ->view('blog.feed', compact('posts'))
-            ->header('Content-Type', 'application/rss+xml; charset=UTF-8');
-    }
-}
-```
-
-## Create views
-
-Use the package's Blade components inside your own page templates:
-
-```blade [resources/views/blog/show.blade.php]
-<x-your-layout>
-    @push('head')
-        <x-ink::meta-tags :post="$post" />
-        <x-ink::feed-link />
-    @endpush
-
-    <x-ink::structured-data :post="$post" />
-
-    <x-ink::post-header :post="$post" />
-    <x-ink::post-body :post="$post" />
-    <x-ink::related-posts :posts="$relatedPosts" />
-</x-your-layout>
-```
-
-```blade [resources/views/blog/index.blade.php]
-<x-your-layout>
-    @foreach($posts as $post)
-        <x-ink::post-card :post="$post" />
-    @endforeach
-
-    {{ $posts->links() }}
-</x-your-layout>
-```
-
-```blade [resources/views/blog/feed.blade.php]
-<x-ink::feed :posts="$posts" />
-```
-
-## Helpers on the Post model
-
-Useful in your views:
-
-```php
-$post->readingTime();       // int — minutes
-$post->relatedPosts(3);     // Builder of same-category, published, !=$this->id
-$post->getUrl();            // route('blog.show', $post->slug) if registered, else fallback
-$post->tableOfContents();   // array<string, string> — fragment => heading text, from <h2>
-$post->renderedContent();   // string — rendered through your app's `markdown` config
-$post->toSafeHtml();        // string — rendered with ink's hardened options
-```
-
-### The two render paths
-
-Both renderers add `loading="lazy" decoding="async"` to every image (leaving an attribute
-the author declared by hand alone), and both take markdown in and give HTML out — but they
-are **not** equivalent, and the choice is a security decision:
-
-|                                                  | `toSafeHtml()` | `toHtml()` / `renderedContent()` / `<x-ink::post-body>`                                    |
-| ------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------ |
-| Raw HTML in content                              | stripped       | governed by your `markdown.commonmark_options.html_input` (CommonMark defaults to `allow`) |
-| `javascript:` links                              | disarmed       | governed by `allow_unsafe_links` (defaults to `true`)                                      |
-| GFM tables, strikethrough, task lists, autolinks | yes            | only if you add the extension to `markdown.extensions`                                     |
-| Heading permalink anchors, code highlighting     | no             | per your `markdown` config                                                                 |
-| `tableOfContents()` compatible                   | no             | yes                                                                                        |
-| Cached                                           | no             | `post-rendered:{id}`, forever                                                              |
-
-`<x-ink::post-body>` and everything else built on `toHtml()` deliberately defer to your
-app's spatie/laravel-markdown configuration — that's the documented extension point, and
-it's what makes anchors, code highlighting and your own CommonMark extensions work. The
-flip side is that it also defers on **sanitisation**: with a stock `config/markdown.php`,
-raw HTML in a post body is rendered, not stripped. If anyone who can author a post is not
-fully trusted, either pin `html_input` and `allow_unsafe_links` in
-`markdown.commonmark_options`, or render with `$post->toSafeHtml()` instead — which is what
-the package's own `ink::pages.show` / `ink::pages.preview` views do.
-
-`tableOfContents(string $tag = 'h2')` parses the **rendered** post (`$post->toHtml()`), not
-the markdown source, so a heading's full text is captured even when it contains inline
-markup (bold, code, links) — `## Using \`artisan\` commands`becomes`Using artisan
-commands`, not `Using\` — and HTML entities decode exactly once. Each key is the fragment
-used by the heading's permalink anchor; each value is the heading's text:
-
-```blade [resources/views/blog/show.blade.php]
-@if ($toc = $post->tableOfContents())
-    <nav aria-label="Table of contents">
-        <ul>
-            @foreach ($toc as $fragment => $heading)
-                <li><a href="#{{ $fragment }}">{{ $heading }}</a></li>
-            @endforeach
-        </ul>
-    </nav>
-@endif
-```
-
-Pass `tag: 'h3'` (or any heading level your content uses) to build the TOC from a different
-level. A post with no matching headings returns an empty array.
-
-## Expected route names
-
-The package checks for these names when generating URLs. If a route is missing, the helper returns `#`:
-
-| Name            | Purpose                       |
-| --------------- | ----------------------------- |
-| `blog.index`    | Listing page                  |
-| `blog.show`     | Single post (`slug`)          |
-| `blog.category` | Category archive (`slug`)     |
-| `blog.tag`      | Tag archive (`slug`)          |
-| `blog.preview`  | Signed draft preview (`post`) |
-| `blog.feed`     | RSS feed                      |
-
-## Promote to public-routes mode any time
-
-If writing all this gets old, flip the flag in config and delete your controller — the package will register equivalent routes automatically. See [Public-routes mode](https://relaticle.github.io/ink/getting-started/public-routes-mode).
-
-
-# Public-routes mode
-
-The package ships an **opt-in public-routes mode**. Flip a flag in config and you get:
-
-| Route                       | Name            | Notes                                                             |
-| --------------------------- | --------------- | ----------------------------------------------------------------- |
-| `GET /blog`                 | `blog.index`    | Paginated post listing                                            |
-| `GET /blog/{slug}`          | `blog.show`     | Single post (only published)                                      |
-| `GET /blog/category/{slug}` | `blog.category` | Category archive (paginated)                                      |
-| `GET /blog/preview/{post}`  | `blog.preview`  | Signed-only draft preview, with `noindex,nofollow` meta           |
-| `GET /blog/feed`            | `blog.feed`     | RSS 2.0 feed (route only registered when `features.feed` is true) |
-| `GET /blog/tag/{slug}`      | `blog.tag`      | Tag archive (gated by `features.tags`)                            |
-
-## Enable it
-
-```php [config/ink.php]
-'features' => [
-    'public_routes' => true,
-    'feed'          => true,   // optional, enables /blog/feed
-    'tags'          => true,   // optional, enables /blog/tag/{slug}
-],
-
-'layout' => 'layouts.app',     // your host layout the page views extend
-```
-
-That's it. The service provider registers the routes at boot — no Filament panel boot is required, so the public site keeps working for guests who never touch the admin.
-
-## Required: a host layout
-
-The page views extend the layout you set in `'layout'`. It must define a `@yield('content')` slot. A minimal example:
-
-```blade [resources/views/layouts/app.blade.php]
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $title ?? config('app.name') }}</title>
-    @stack('head')
-</head>
-<body class="bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
-    @yield('content')
-</body>
-</html>
-```
-
-If your layout uses a different slot mechanism (e.g. Blade components with `{{ $slot }}`), point the [`views` config map](https://relaticle.github.io/ink/essentials/host-owned-views) at views of your own — see the next section.
-
-## Customizing pages
-
-Point the `views` config map at views your app already owns, per action:
-
-```php [config/ink.php]
-'views' => [
-    'show' => 'blog.show',
-    'preview' => 'blog.preview',
-],
-```
-
-Any key left `null` keeps rendering the package's own `ink::pages.*` view. See
-[Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views) for the full data each action passes and
-for wiring the preview "edit this post" link.
-
-Publishing (`php artisan vendor:publish --tag=ink-views`) also works — Laravel resolves
-`resources/views/vendor/ink/**` ahead of the package's own views — but a published file is a
-frozen copy that stops receiving upstream fixes. Prefer the `views` map.
-
-## Custom prefix
-
-Change `'prefix' => 'blog'` in config. All routes pick up the new prefix.
-
-## Disabling individual pieces
-
-Each feature flag is independent:
-
-```php
-'features' => [
-    'public_routes' => true,
-    'feed'          => false,   // no RSS feed
-    'tags'          => false,   // no tag archive (admin still works if registered)
-],
-```
-
-When a flag is off, requests to that path return **404**, but not always for the same reason:
-
-- `features.feed` off — the `blog.feed` route is never registered. `Route::has('blog.feed')` returns `false`.
-- `features.tags` off — the `blog.tag` route is still registered (so `route('blog.tag', ...)` keeps resolving without throwing), but `tag()` calls `abort_unless($flag, 404)` at request time. `Route::has('blog.tag')` returns `true`.
-
-The tag route stays registered unconditionally so that `route('blog.tag', ...)` never throws
-a `RouteNotFoundException`, even with the feature off — only the controller enforces the
-flag.
-
-## Mode comparison
-
-|                       | Headless        | Public-routes             |
-| --------------------- | --------------- | ------------------------- |
-| Routes registered     | None            | All 6                     |
-| Controllers           | You write       | Shipped                   |
-| Views                 | Components only | Full pages                |
-| Custom domain logic   | Yes (any)       | Limited to view overrides |
-| Effort to ship a blog | \~2 hours       | \~5 minutes               |
-
-If you outgrow public-routes mode, flip the flag back to `false` and write your own controllers — see [Frontend Setup (headless)](https://relaticle.github.io/ink/getting-started/frontend-setup).
+Ink is open-sourced software licensed under the [MIT License](https://opensource.org/licenses/MIT).
 
 
 # Blade Components
+
+> All available Blade components for building your blog frontend.
 
 All components are publishable. Run `php artisan vendor:publish --tag=ink-views` to customize.
 
@@ -590,537 +145,9 @@ The view emits `aria-label="Blog pagination"` on the nav, `aria-current="page"` 
 Drop `<livewire:blog::search />` anywhere. It reads `?q=` from the URL, debounces 400ms, and renders up to 20 matching posts. Empty queries show no results until the user types.
 
 
-# Host-Owned Views
-
-Public-routes mode ships a `BlogController` with all six public actions. By default they
-render the package's own `ink::pages.*` views. Point each action at a view your app already
-owns instead — same controller, same SEO and query behavior, your markup.
-
-## The `views` config map
-
-```php [config/ink.php]
-'views' => [
-    'index' => null,
-    'show' => null,
-    'category' => null,
-    'tag' => null,
-    'preview' => null,
-    'feed' => null,
-],
-```
-
-Every key defaults to `null`. A `null` or empty-string value falls back to the matching
-`ink::pages.*` view, so an existing install that never touches this key renders exactly as
-before. Set a key to any view name your app can resolve — a Blade view, a package view, a
-namespaced view from another provider:
-
-```php [config/ink.php]
-'views' => [
-    'index' => 'blog.index',
-    'show' => 'blog.show',
-    'preview' => 'blog.preview',
-],
-```
-
-Resolution happens once per request, through a private `viewFor()` helper on
-`BlogController` — every action calls it instead of hardcoding `ink::pages.*`.
-
-## What each view receives
-
-| Action     | View data                         | Notes                                                                                                                                                               |
-| ---------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `index`    | `posts`                           | —                                                                                                                                                                   |
-| `show`     | `post`, `relatedPosts`            | `post->tags` is eager-loaded                                                                                                                                        |
-| `category` | `category`, `posts`               | —                                                                                                                                                                   |
-| `tag`      | `tag`, `posts`                    | —                                                                                                                                                                   |
-| `preview`  | `post`, `relatedPosts`, `editUrl` | `post->tags` is eager-loaded; `editUrl` is `null` unless a host registers [`Ink::resolvePreviewEditUrlUsing()`](https://relaticle.github.io/ink/#preview-edit-link) |
-| `feed`     | `posts`                           | —                                                                                                                                                                   |
-
-`relatedPosts` and `editUrl` on `preview` are new — earlier versions passed only `post`.
-
-::caution
-Publishing views (`php artisan vendor:publish --tag=ink-views`) is not the recommended way
-to customize the six page views above. Laravel resolves `resources/views/vendor/ink/**`
-ahead of `ink::**` automatically, so publishing *works* — but the file it creates is a
-frozen copy of package markup from the day you published it. It will not receive upstream
-fixes, and nothing will tell you when it's drifted. Pointing `views` at your own view avoids
-both problems: you own the markup from the start, and ink's own pages keep improving
-underneath you without needing a merge.
-
-Publishing is still how you customize the [Blade components](https://relaticle.github.io/ink/essentials/blade-components)
-(`post-card`, `post-header`, …) — those aren't covered by the `views` map.
-::
-
-## Preview edit link
-
-`Ink::resolvePreviewEditUrlUsing()` registers how to build the "edit this post" link shown
-on the preview page:
-
-```php
-public static function resolvePreviewEditUrlUsing(?Closure $callback): void
-```
-
-With nothing registered, `editUrl` is always `null` and no edit link renders. Register a
-callback in a service provider's `boot()` — never in config, since a closure in a config
-file breaks `config:cache`:
-
-```php
-use Relaticle\Ink\Ink;
-use Relaticle\Ink\Models\Post;
-
-Ink::resolvePreviewEditUrlUsing(fn (Post $post): ?string =>
-    auth('sysadmin')->check()
-        ? PostResource::getUrl('edit', ['record' => $post], panel: 'sysadmin')
-        : null);
-```
-
-The callback receives the `Post` and must return a string or `null`. A `null`, or any
-non-string return, is treated as "no link" — a misconfigured *return value* never throws.
-If your callback itself throws, that exception is not caught and will surface as a 500 on
-the preview page; ink only guards the return value, not the callback's own execution.
-Which panel and which guard own the blog admin is a host decision; ink does not guess at
-it.
-
-`<x-ink::preview-banner :post="$post" :editUrl="$editUrl" />` is the shipped component that
-renders this link.
-
-## Route middleware
-
-```php [config/ink.php]
-'middleware' => ['web'],
-```
-
-Applied to the entire blog route group. Add your own alongside it — for example a host that
-serves markdown to AI crawlers:
-
-```php [config/ink.php]
-'middleware' => ['web', ProvideMarkdownResponse::class],
-```
-
-## The shallow config-merge trap
-
-::caution
-If your app has already run `php artisan vendor:publish --tag=ink-config`, be aware that
-Laravel's `mergeConfigFrom` — which is how the package's config defaults reach your
-`config/ink.php` — is a **shallow** merge. It's `array_merge($packageDefaults, $yourConfig)`:
-for any top-level key present in both arrays, your value wins **wholesale**, array or not.
-
-New top-level keys like `views` and `middleware` merge in fine — your published file simply
-doesn't have them, so the package default fills the gap. But a key added *inside* an
-existing array, such as a new flag under `features`, will not reach you: your published
-`features` array replaces the package's entirely, new subkey and all. This isn't
-hypothetical — it already bit a host of this package: `ink.features.mcp` silently resolved
-to `null` after they'd published `config/ink.php` before that flag existed.
-
-After upgrading, diff your published `config/ink.php` against the package's
-[`config/ink.php`](https://github.com/relaticle/ink/blob/main/config/ink.php){rel=""nofollow""} and add any
-new subkeys by hand.
-::
-
-
-# Languages
-
-Every post has a `locale` and an optional `translation_group`. A blog that never sets
-`ink.locales` stays a single-language blog and behaves exactly as before.
-
-## Configure
-
-```php [config/ink.php]
-'locales' => ['en', 'de', 'fr'],
-'default_locale' => 'en',
-```
-
-The default locale keeps the unprefixed routes. Each other locale gets its own set:
-
-| Route    | Default locale                            | Other locales                                   |
-| -------- | ----------------------------------------- | ----------------------------------------------- |
-| Index    | `/blog` (`blog.index`)                    | `/de/blog` (`blog.de.index`)                    |
-| Post     | `/blog/{slug}` (`blog.show`)              | `/de/blog/{slug}` (`blog.de.show`)              |
-| Category | `/blog/category/{slug}` (`blog.category`) | `/de/blog/category/{slug}` (`blog.de.category`) |
-| Tag      | `/blog/tag/{slug}` (`blog.tag`)           | `/de/blog/tag/{slug}` (`blog.de.tag`)           |
-| Feed     | `/blog/feed` (`blog.feed`)                | `/de/blog/feed` (`blog.de.feed`)                |
-
-The preview route stays unprefixed. A page only lists posts in its own language, and a post that
-has no version in a language answers 404 at that language's URL. Slugs are unique per language, so a
-German post and its English original can share one.
-
-Ink does not set the application locale for you. If your layout needs it, set it from the route
-(`request()->route()->defaults['locale']`, absent on the default locale's routes).
-
-## Translations
-
-Posts that translate each other share a `translation_group`. Link them in the panel with the
-"Translation of" field, or over MCP with `translation_of` (the id of the post being translated).
-A group holds at most one post per language.
-
-```php
-$post->translations();   // published versions in other languages
-$post->siblings();       // query builder: same group, any status
-$post->alternateUrls();  // ['en' => ..., 'de' => ..., 'x-default' => ...]
-$post->getUrl();         // the URL in the post's own language
-Post::query()->inLocale('de');
-```
-
-A published post with at least one published translation emits `hreflang` alternates (through
-`seo()->for($post)` and `<x-ink::meta-tags>`), including `x-default` for the default locale's
-version. The sitemap lists every language's pages with `xhtml:link` alternates. A language's
-sitemap entries appear once it has a published post, and each feed sets `<language>` to its locale.
-
-`<livewire:blog::search />` and related posts stay inside one language. Pass `locale="de"` to the
-search component to override the language it takes from the route.
-
-
-# Filament Admin
-
-## Posts Resource
-
-The PostResource provides a full CRUD interface for blog posts.
-
-### Form Fields
-
-| Field          | Type           | Notes                                                                                                                              |
-| -------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Title          | TextInput      | Required, max 255                                                                                                                  |
-| Slug           | TextInput      | Auto-generated, unique, frozen on rename                                                                                           |
-| Content        | MarkdownEditor | Required, full toolbar                                                                                                             |
-| Excerpt        | Textarea       | 3 rows                                                                                                                             |
-| Status         | Toggle         | Hydrates to/from the \`Draft                                                                                                       |
-| Published At   | DateTimePicker | Future value = scheduled                                                                                                           |
-| Category       | Select         | Searchable, create inline                                                                                                          |
-| Tags           | Select         | Multi, searchable, create inline — only visible when `features.tags` is on                                                         |
-| Author         | Select         | Defaults to current user                                                                                                           |
-| Featured Image | FileUpload     | Image, public disk — auto-swaps to `SpatieMediaLibraryFileUpload` when `features.media_library` is on AND the package is installed |
-| SEO            | SEO Component  | Title + description (collapsible)                                                                                                  |
-
-### List Tabs
-
-Posts are organized into tabs:
-
-| Tab           | Filter                                         |
-| ------------- | ---------------------------------------------- |
-| **Drafts**    | `status = draft`                               |
-| **Scheduled** | `status = published` AND `published_at > now`  |
-| **Published** | `status = published` AND `published_at <= now` |
-
-### Per-row actions
-
-- **View** — opens the post URL (published) or signed preview URL (draft) in a new tab
-- **Edit** — edit form
-- **Delete / Force Delete / Restore** — soft delete support
-
-### Bulk actions
-
-| Action                              | Effect                                                                                 |
-| ----------------------------------- | -------------------------------------------------------------------------------------- |
-| **Publish**                         | Sets `status = Published` and `published_at` to now (or keeps existing if already set) |
-| **Unpublish**                       | Sets `status = Draft` and clears `published_at`                                        |
-| **Schedule**                        | Modal with `DateTimePicker` (min: now); sets `status = Published` + that timestamp     |
-| **Delete / Force Delete / Restore** | Standard soft-delete bulk operations                                                   |
-
-All bulk actions notify on completion and deselect rows.
-
-## Categories Resource
-
-Simple CRUD for blog categories: `name`, `slug` (auto-generated, unique), `posts_count` column, soft-delete support, trashed filter.
-
-## Tags Resource (opt-in)
-
-Appears in the Blog navigation group when `features.tags` is enabled. Mirrors the Categories resource shape: `name`, `slug` (auto-generated, unique, frozen on rename), `posts_count` column, soft-delete support, trashed filter.
-
-When the flag is off, the resource class still exists but `shouldRegisterNavigation()` returns `false` so it doesn't appear in the sidebar.
-
-See the [Tags Taxonomy](https://relaticle.github.io/ink/essentials/tags) page for full schema and usage.
-
-## Plugin Registration
-
-```php [AppPanelProvider.php]
-use Relaticle\Ink\InkPlugin;
-
-$panel->plugins([
-    InkPlugin::make(),
-]);
-```
-
-The plugin auto-discovers `PostResource`, `CategoryResource`, and `TagResource` under the "Blog" navigation group. Resources hidden by feature flags don't appear in the sidebar — they're still resolvable for tests and direct URL access.
-
-
-# MCP Tools
-
-The package includes 14 Model Context Protocol tools for full blog management via AI agents.
-
-## Post Tools
-
-| Tool                     | Type       | Ability        | Description                                                                                    |
-| ------------------------ | ---------- | -------------- | ---------------------------------------------------------------------------------------------- |
-| `ListPostsTool`          | Read-only  | `posts:read`   | List posts with filters (status, category, search, pagination)                                 |
-| `GetPostTool`            | Read-only  | `posts:read`   | Get post by ID or slug                                                                         |
-| `CreatePostTool`         | Write      | `posts:create` | Create post (markdown content, auto-slug, auto-sanitize, optional `featured_image`)            |
-| `UpdatePostTool`         | Idempotent | `posts:update` | Update post fields (partial updates, including `featured_image`)                               |
-| `DeletePostTool`         | Write      | `posts:delete` | Soft delete a post                                                                             |
-| `RestorePostTool`        | Write      | `posts:delete` | Restore a soft-deleted post                                                                    |
-| `GeneratePreviewUrlTool` | Read-only  | `posts:read`   | Generate 1-hour signed preview URL                                                             |
-| `UploadImageTool`        | Write      | `posts:create` | Upload an image (from a URL or base64 data) for use as a featured image or embedded in content |
-
-## Category Tools
-
-| Tool                  | Type       | Ability             | Description                     |
-| --------------------- | ---------- | ------------------- | ------------------------------- |
-| `ListCategoriesTool`  | Read-only  | `categories:read`   | List categories with post count |
-| `GetCategoryTool`     | Read-only  | `categories:read`   | Get category by ID or slug      |
-| `CreateCategoryTool`  | Write      | `categories:create` | Create category (auto-slug)     |
-| `UpdateCategoryTool`  | Idempotent | `categories:update` | Update category name            |
-| `DeleteCategoryTool`  | Write      | `categories:delete` | Soft delete a category          |
-| `RestoreCategoryTool` | Write      | `categories:delete` | Restore a soft-deleted category |
-
-## Setup
-
-Install `laravel/mcp` (a suggestion, not a hard requirement), then turn the feature on:
-
-```php [config/ink.php]
-'features' => [
-    'mcp' => true,
-],
-
-'mcp' => [
-    'path' => '/mcp/blog',
-    'guard' => null,                    // null uses the default guard
-    'middleware' => ['auth:sanctum'],
-],
-```
-
-That registers `BlogServer` — all 14 tools — at the configured path. Nothing is exposed
-until you opt in, and enabling the flag without `laravel/mcp` installed simply yields no
-route rather than an error.
-
-Enabling `mcp` also registers the signed `/blog/preview/{post}` route — used by
-`GeneratePreviewUrlTool` and `Post::getUrl()` — even when `features.public_routes` is off,
-so an agent can preview a draft or scheduled post in a browser before the public blog
-launches. The rest of the public routes stay dark.
-
-Prefer to route it yourself? Leave the flag off and register the shipped server:
-
-```php [routes/ai.php]
-use Relaticle\Ink\Mcp\BlogServer;
-
-Mcp::web('/mcp/blog', BlogServer::class)->middleware('auth:sanctum');
-```
-
-## Authorization
-
-Tools authorize through **your application's Gate**. Register a policy for
-`Relaticle\Ink\Models\Post` and `Relaticle\Ink\Models\Category`:
-
-```php
-Gate::policy(Post::class, PostPolicy::class);
-Gate::policy(Category::class, CategoryPolicy::class);
-```
-
-With no policy registered the Gate denies and every tool returns
-`This action is unauthorized.` — the tools fail closed.
-
-Each tool maps to one Gate ability and one Sanctum token ability. The two are separate
-axes: the Gate decides what an **identity** may do, the token ability what a
-**credential** may do, so a token can be scoped more narrowly than the person holding it.
-
-| Tool                     | Gate ability | Token ability       |
-| ------------------------ | ------------ | ------------------- |
-| `ListPostsTool`          | `viewAny`    | `posts:read`        |
-| `GetPostTool`            | `view`       | `posts:read`        |
-| `GeneratePreviewUrlTool` | `view`       | `posts:read`        |
-| `CreatePostTool`         | `create`     | `posts:create`      |
-| `UpdatePostTool`         | `update`     | `posts:update`      |
-| `UploadImageTool`        | `create`     | `posts:create`      |
-| `DeletePostTool`         | `delete`     | `posts:delete`      |
-| `RestorePostTool`        | `restore`    | `posts:delete`      |
-| `ListCategoriesTool`     | `viewAny`    | `categories:read`   |
-| `GetCategoryTool`        | `view`       | `categories:read`   |
-| `CreateCategoryTool`     | `create`     | `categories:create` |
-| `UpdateCategoryTool`     | `update`     | `categories:update` |
-| `DeleteCategoryTool`     | `delete`     | `categories:delete` |
-| `RestoreCategoryTool`    | `restore`    | `categories:delete` |
-
-Instance-target tools resolve the record before authorizing, so a denial never doubles as
-an existence check.
-
-### Callers on another guard
-
-If your staff authenticate on a guard other than the default — a separate admin model, for
-instance — point `ink.mcp.guard` at it. `BlogTool` resolves the caller from that guard.
-
-## Author attribution
-
-`CreatePostTool` writes `author_id`, which is `NOT NULL`. By default the caller is used
-when it is already an `ink.author_model` instance. When it is not, supply the mapping in a
-service provider's `boot()`:
-
-```php
-use Relaticle\Ink\Ink;
-
-Ink::resolveAuthorUsing(fn (SystemAdministrator $admin): ?User =>
-    User::firstWhere('email', $admin->email));
-```
-
-Register it in a provider, never in config — a closure in a config file breaks
-`config:cache`. If no author resolves, the tool reports the misconfiguration instead of
-guessing.
-
-## Images
-
-MCP's `tools/call` arguments are plain JSON — there is no binary channel for tool inputs —
-so `UploadImageTool` accepts either a fetchable `url` or base64-encoded `data` (exactly one
-of the two). The image type is detected by sniffing the actual bytes, never trusted from a
-filename or extension; only `jpeg`, `png`, `gif` and `webp` are accepted (no `svg` — it's a
-stored-XSS vector). Size is capped by `ink.uploads.max_bytes` — a HEAD request rejects an
-oversized `url` by its `Content-Length` before the body is downloaded where the server
-advertises one; the body itself is still measured against the cap either way.
-
-::caution
-**SSRF stance (accepted risk):**
-
- the 
-
-`url`
-
- fetch is scheme-restricted (
-
-`http`
-
-/
-
-`https`
-
- only)
-but has no host allowlist — it can reach any address your app server can reach, including
-internal/private ones (e.g. a cloud metadata endpoint). This is an accepted risk, not an
-oversight: the caller is already an authenticated, admin-scoped identity trusted to publish
-content (
-
-`upload-image`
-
- shares 
-
-`create-post-tool`
-
-'s 
-
-`create`
-
- Gate ability and 
-
-`posts:create`
-
-
-token ability), not an anonymous or low-privilege one. If your deployment needs a stricter
-boundary — blocking link-local and RFC1918 ranges, for example — enforce it at the network
-layer in front of the app; there is no host-allowlist config in the package itself.
-::
-
-```php [config/ink.php]
-'uploads' => [
-    'disk' => 'public',       // matches the Filament featured-image field's disk
-    'directory' => 'ink',     // matches its directory too — panel and MCP uploads share a home
-    'max_bytes' => 3 * 1024 * 1024,
-],
-```
-
-::caution
-**`max_bytes` and PHP's `post_max_size` (base64 uploads only):**
-
- the base64 
-
-`data`
-
- path is
-bound by PHP's 
-
-`post_max_size`
-
- — and any webserver/proxy body-size limit — 
-
-*before Laravel
-ever boots*
-
-. base64 inflates the binary size by ~4/3, so an oversized payload is rejected by
-PHP itself: the client gets a raw PHP warning wrapped in an HTTP 200, not a clean JSON-RPC
-error, and no app-level check (this one included) can catch it. The 3MB default (≈4MB
-base64-encoded) stays safely under a common 5-8M 
-
-`post_max_size`
-
- floor; raise both together
-if you need a higher cap, keeping 
-
-`post_max_size`
-
- comfortably above 
-
-`max_bytes * 4/3`
-
-. The
-
-
-`url`
-
- path has no such ceiling — the image is fetched by this server's own HTTP client, not
-carried in the MCP request body at all — so prefer it for anything larger than a few MB.
-::
-
-The tool returns a `path` (pass it as `featured_image` to `create-post-tool` /
-`update-post-tool`), a public `url`, and a ready-to-paste `markdown` snippet for in-content
-images:
-
-```json
-{
-  "path": "ink/01hz...webp",
-  "url": "https://example.test/storage/ink/01hz...webp",
-  "markdown": "![A dashboard screenshot](https://example.test/storage/ink/01hz...webp)"
-}
-```
-
-`featured_image` on `create-post-tool` / `update-post-tool` only accepts a path
-`upload-image` itself produced — it's validated against the uploads disk and directory, so
-an agent can't point it at an arbitrary file. Pass `featured_image: null` on
-`update-post-tool` to clear it. Rendering assumes the public disk with `storage:link` run —
-the six `asset('storage/…')` call sites documented in the README are unchanged by this
-feature. Rendered post images get `loading="lazy"` and `decoding="async"` automatically on
-both render paths (`Post::toHtml()` and `Post::toSafeHtml()`), leaving any attribute the
-author declared by hand alone; there is no automatic resizing or `srcset` generation yet, so an
-oversized source image still costs bandwidth and LCP — keep uploads reasonably sized until a
-resizing pipeline ships.
-
-## Scheduling
-
-A post with `status: "published"` and a future `published_at` is scheduled, not published
-immediately: `Post::published()` is evaluated at query time, so the post appears on the
-public index/show/feed/sitemap the moment the clock passes `published_at`, with no queue or
-command involved. Its signed preview URL (`generate-preview-url-tool`) keeps working right
-up until then.
-
-## Content format
-
-The tools store the **markdown** you send, exactly as the Filament editor does; they do not
-convert it to HTML. Rendering — and therefore HTML sanitisation — happens at read time
-through your application's markdown configuration.
-
-::caution
-Posts created by ink 2.1 and earlier hold rendered HTML. The
-
-
-`convert_html_post_content_to_markdown`
-
- migration converts them and prints the ids of any
-row it could not convert cleanly, so you can review those by hand.
-::
-
-## Extending
-
-Custom blog tools should extend `Relaticle\Ink\Mcp\BlogTool` rather than
-`Laravel\Mcp\Server\Tool`. Its `handle()` is `final` and performs authorization before
-delegating, so a new tool cannot ship without it. Declare `ability()`, `tokenAbility()`,
-`model()` and `run()`; override `resolveRecord()` when the tool operates on one record.
-
-
 # Configuration
+
+> Full configuration reference for Ink.
 
 Publish the config file:
 
@@ -1128,36 +155,14 @@ Publish the config file:
 php artisan vendor:publish --tag=ink-config
 ```
 
-::caution
-Once published, new 
+<caution>
 
-**top-level**
-
- keys the package adds in later releases (like 
-
-`views`
-
- and
-
-
-`middleware`
-
-) merge into your config automatically. New keys added 
-
-*inside*
-
- an existing
-array such as 
-
-`features`
-
- do not — see 
-
-[the shallow-merge trap](https://relaticle.github.io/ink/essentials/host-owned-views#the-shallow-config-merge-trap)
-
-
+Once published, new **top-level** keys the package adds in later releases (like `views` and
+`middleware`) merge into your config automatically. New keys added *inside* an existing
+array such as `features` do not — see [the shallow-merge trap](https://relaticle.github.io/essentials/host-owned-views#the-shallow-config-merge-trap)
 for why, and re-check your published file after every upgrade.
-::
+
+</caution>
 
 ## Full reference
 
@@ -1349,7 +354,7 @@ The generator is route-aware — it only adds URLs for routes that exist in your
 
 For the six public-routes pages (`index`, `show`, `category`, `tag`, `preview`, `feed`),
 point the `views` config map at views your app already owns — see
-[Host-Owned Views](https://relaticle.github.io/ink/essentials/host-owned-views). It avoids publishing a copy of package
+[Host-Owned Views](https://relaticle.github.io/essentials/host-owned-views). It avoids publishing a copy of package
 markup that stops receiving upstream fixes.
 
 For the Blade components used in headless mode (`post-card`, `post-header`, …), publishing
@@ -1375,7 +380,2233 @@ php artisan vendor:publish --tag=ink-translations
 (No translations ship by default; this tag exists for future localization.)
 
 
+# Filament Admin
+
+> Managing blog posts, categories, and tags in the Filament admin panel.
+
+## Posts Resource
+
+The PostResource provides a full CRUD interface for blog posts.
+
+### Form Fields
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Field
+    </th>
+    
+    <th>
+      Type
+    </th>
+    
+    <th>
+      Notes
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      Title
+    </td>
+    
+    <td>
+      TextInput
+    </td>
+    
+    <td>
+      Required, max 255
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Slug
+    </td>
+    
+    <td>
+      TextInput
+    </td>
+    
+    <td>
+      Auto-generated, unique, frozen on rename
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Content
+    </td>
+    
+    <td>
+      MarkdownEditor
+    </td>
+    
+    <td>
+      Required, full toolbar
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Excerpt
+    </td>
+    
+    <td>
+      Textarea
+    </td>
+    
+    <td>
+      3 rows
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Status
+    </td>
+    
+    <td>
+      Toggle
+    </td>
+    
+    <td>
+      Hydrates to/from the `Draft
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Published At
+    </td>
+    
+    <td>
+      DateTimePicker
+    </td>
+    
+    <td>
+      Future value = scheduled
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Category
+    </td>
+    
+    <td>
+      Select
+    </td>
+    
+    <td>
+      Searchable, create inline
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Tags
+    </td>
+    
+    <td>
+      Select
+    </td>
+    
+    <td>
+      Multi, searchable, create inline — only visible when <code>
+        features.tags
+      </code>
+      
+       is on
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Author
+    </td>
+    
+    <td>
+      Select
+    </td>
+    
+    <td>
+      Defaults to current user
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Featured Image
+    </td>
+    
+    <td>
+      FileUpload
+    </td>
+    
+    <td>
+      Image, public disk — auto-swaps to <code>
+        SpatieMediaLibraryFileUpload
+      </code>
+      
+       when <code>
+        features.media_library
+      </code>
+      
+       is on AND the package is installed
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      SEO
+    </td>
+    
+    <td>
+      SEO Component
+    </td>
+    
+    <td>
+      Title + description (collapsible)
+    </td>
+  </tr>
+</tbody>
+</table>
+
+### List Tabs
+
+Posts are organized into tabs:
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Tab
+    </th>
+    
+    <th>
+      Filter
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      <strong>
+        Drafts
+      </strong>
+    </td>
+    
+    <td>
+      <code>
+        status = draft
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <strong>
+        Scheduled
+      </strong>
+    </td>
+    
+    <td>
+      <code>
+        status = published
+      </code>
+      
+       AND <code>
+        published_at > now
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <strong>
+        Published
+      </strong>
+    </td>
+    
+    <td>
+      <code>
+        status = published
+      </code>
+      
+       AND <code>
+        published_at <= now
+      </code>
+    </td>
+  </tr>
+</tbody>
+</table>
+
+### Per-row actions
+
+- **View** — opens the post URL (published) or signed preview URL (draft) in a new tab
+- **Edit** — edit form
+- **Delete / Force Delete / Restore** — soft delete support
+
+### Bulk actions
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Action
+    </th>
+    
+    <th>
+      Effect
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      <strong>
+        Publish
+      </strong>
+    </td>
+    
+    <td>
+      Sets <code>
+        status = Published
+      </code>
+      
+       and <code>
+        published_at
+      </code>
+      
+       to now (or keeps existing if already set)
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <strong>
+        Unpublish
+      </strong>
+    </td>
+    
+    <td>
+      Sets <code>
+        status = Draft
+      </code>
+      
+       and clears <code>
+        published_at
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <strong>
+        Schedule
+      </strong>
+    </td>
+    
+    <td>
+      Modal with <code>
+        DateTimePicker
+      </code>
+      
+       (min: now); sets <code>
+        status = Published
+      </code>
+      
+       + that timestamp
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <strong>
+        Delete / Force Delete / Restore
+      </strong>
+    </td>
+    
+    <td>
+      Standard soft-delete bulk operations
+    </td>
+  </tr>
+</tbody>
+</table>
+
+All bulk actions notify on completion and deselect rows.
+
+## Categories Resource
+
+Simple CRUD for blog categories: `name`, `slug` (auto-generated, unique), `posts_count` column, soft-delete support, trashed filter.
+
+## Tags Resource (opt-in)
+
+Appears in the Blog navigation group when `features.tags` is enabled. Mirrors the Categories resource shape: `name`, `slug` (auto-generated, unique, frozen on rename), `posts_count` column, soft-delete support, trashed filter.
+
+When the flag is off, the resource class still exists but `shouldRegisterNavigation()` returns `false` so it doesn't appear in the sidebar.
+
+See the [Tags Taxonomy](https://relaticle.github.io/essentials/tags) page for full schema and usage.
+
+## Plugin Registration
+
+```php [AppPanelProvider.php]
+use Relaticle\Ink\InkPlugin;
+
+$panel->plugins([
+    InkPlugin::make(),
+]);
+```
+
+The plugin auto-discovers `PostResource`, `CategoryResource`, and `TagResource` under the "Blog" navigation group. Resources hidden by feature flags don't appear in the sidebar — they're still resolvable for tests and direct URL access.
+
+
+# Host-Owned Views
+
+> Render ink's controllers through views your app already owns, and control the preview edit link.
+
+Public-routes mode ships a `BlogController` with all six public actions. By default they
+render the package's own `ink::pages.*` views. Point each action at a view your app already
+owns instead — same controller, same SEO and query behavior, your markup.
+
+## The `views` config map
+
+```php [config/ink.php]
+'views' => [
+    'index' => null,
+    'show' => null,
+    'category' => null,
+    'tag' => null,
+    'preview' => null,
+    'feed' => null,
+],
+```
+
+Every key defaults to `null`. A `null` or empty-string value falls back to the matching
+`ink::pages.*` view, so an existing install that never touches this key renders exactly as
+before. Set a key to any view name your app can resolve — a Blade view, a package view, a
+namespaced view from another provider:
+
+```php [config/ink.php]
+'views' => [
+    'index' => 'blog.index',
+    'show' => 'blog.show',
+    'preview' => 'blog.preview',
+],
+```
+
+Resolution happens once per request, through a private `viewFor()` helper on
+`BlogController` — every action calls it instead of hardcoding `ink::pages.*`.
+
+## What each view receives
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Action
+    </th>
+    
+    <th>
+      View data
+    </th>
+    
+    <th>
+      Notes
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      <code>
+        index
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts
+      </code>
+    </td>
+    
+    <td>
+      —
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        show
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        post
+      </code>
+      
+      , <code>
+        relatedPosts
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        post->tags
+      </code>
+      
+       is eager-loaded
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        category
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        category
+      </code>
+      
+      , <code>
+        posts
+      </code>
+    </td>
+    
+    <td>
+      —
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        tag
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        tag
+      </code>
+      
+      , <code>
+        posts
+      </code>
+    </td>
+    
+    <td>
+      —
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        preview
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        post
+      </code>
+      
+      , <code>
+        relatedPosts
+      </code>
+      
+      , <code>
+        editUrl
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        post->tags
+      </code>
+      
+       is eager-loaded; <code>
+        editUrl
+      </code>
+      
+       is <code>
+        null
+      </code>
+      
+       unless a host registers <a href="#preview-edit-link">
+        <code>
+          Ink::resolvePreviewEditUrlUsing()
+        </code>
+      </a>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        feed
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts
+      </code>
+    </td>
+    
+    <td>
+      —
+    </td>
+  </tr>
+</tbody>
+</table>
+
+`relatedPosts` and `editUrl` on `preview` are new — earlier versions passed only `post`.
+
+<caution>
+
+Publishing views (`php artisan vendor:publish --tag=ink-views`) is not the recommended way
+to customize the six page views above. Laravel resolves `resources/views/vendor/ink/**`
+ahead of `ink::**` automatically, so publishing *works* — but the file it creates is a
+frozen copy of package markup from the day you published it. It will not receive upstream
+fixes, and nothing will tell you when it's drifted. Pointing `views` at your own view avoids
+both problems: you own the markup from the start, and ink's own pages keep improving
+underneath you without needing a merge.
+
+Publishing is still how you customize the [Blade components](https://relaticle.github.io/essentials/blade-components)
+(`post-card`, `post-header`, …) — those aren't covered by the `views` map.
+
+</caution>
+
+## Preview edit link
+
+`Ink::resolvePreviewEditUrlUsing()` registers how to build the "edit this post" link shown
+on the preview page:
+
+```php
+public static function resolvePreviewEditUrlUsing(?Closure $callback): void
+```
+
+With nothing registered, `editUrl` is always `null` and no edit link renders. Register a
+callback in a service provider's `boot()` — never in config, since a closure in a config
+file breaks `config:cache`:
+
+```php
+use Relaticle\Ink\Ink;
+use Relaticle\Ink\Models\Post;
+
+Ink::resolvePreviewEditUrlUsing(fn (Post $post): ?string =>
+    auth('sysadmin')->check()
+        ? PostResource::getUrl('edit', ['record' => $post], panel: 'sysadmin')
+        : null);
+```
+
+The callback receives the `Post` and must return a string or `null`. A `null`, or any
+non-string return, is treated as "no link" — a misconfigured *return value* never throws.
+If your callback itself throws, that exception is not caught and will surface as a 500 on
+the preview page; ink only guards the return value, not the callback's own execution.
+Which panel and which guard own the blog admin is a host decision; ink does not guess at
+it.
+
+`<x-ink::preview-banner :post="$post" :editUrl="$editUrl" />` is the shipped component that
+renders this link.
+
+## Route middleware
+
+```php [config/ink.php]
+'middleware' => ['web'],
+```
+
+Applied to the entire blog route group. Add your own alongside it — for example a host that
+serves markdown to AI crawlers:
+
+```php [config/ink.php]
+'middleware' => ['web', ProvideMarkdownResponse::class],
+```
+
+## The shallow config-merge trap
+
+<caution>
+
+If your app has already run `php artisan vendor:publish --tag=ink-config`, be aware that
+Laravel's `mergeConfigFrom` — which is how the package's config defaults reach your
+`config/ink.php` — is a **shallow** merge. It's `array_merge($packageDefaults, $yourConfig)`:
+for any top-level key present in both arrays, your value wins **wholesale**, array or not.
+
+New top-level keys like `views` and `middleware` merge in fine — your published file simply
+doesn't have them, so the package default fills the gap. But a key added *inside* an
+existing array, such as a new flag under `features`, will not reach you: your published
+`features` array replaces the package's entirely, new subkey and all. This isn't
+hypothetical — it already bit a host of this package: `ink.features.mcp` silently resolved
+to `null` after they'd published `config/ink.php` before that flag existed.
+
+After upgrading, diff your published `config/ink.php` against the package's
+[`config/ink.php`](https://github.com/relaticle/ink/blob/main/config/ink.php) and add any
+new subkeys by hand.
+
+</caution>
+
+
+# Languages
+
+> Publish the same post in several languages with per-language URLs, hreflang and feeds.
+
+Every post has a `locale` and an optional `translation_group`. A blog that never sets
+`ink.locales` stays a single-language blog and behaves exactly as before.
+
+## Configure
+
+```php [config/ink.php]
+'locales' => ['en', 'de', 'fr'],
+'default_locale' => 'en',
+```
+
+The default locale keeps the unprefixed routes. Each other locale gets its own set:
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Route
+    </th>
+    
+    <th>
+      Default locale
+    </th>
+    
+    <th>
+      Other locales
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      Index
+    </td>
+    
+    <td>
+      <code>
+        /blog
+      </code>
+      
+       (<code>
+        blog.index
+      </code>
+      
+      )
+    </td>
+    
+    <td>
+      <code>
+        /de/blog
+      </code>
+      
+       (<code>
+        blog.de.index
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Post
+    </td>
+    
+    <td>
+      <code>
+        /blog/{slug}
+      </code>
+      
+       (<code>
+        blog.show
+      </code>
+      
+      )
+    </td>
+    
+    <td>
+      <code>
+        /de/blog/{slug}
+      </code>
+      
+       (<code>
+        blog.de.show
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Category
+    </td>
+    
+    <td>
+      <code>
+        /blog/category/{slug}
+      </code>
+      
+       (<code>
+        blog.category
+      </code>
+      
+      )
+    </td>
+    
+    <td>
+      <code>
+        /de/blog/category/{slug}
+      </code>
+      
+       (<code>
+        blog.de.category
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Tag
+    </td>
+    
+    <td>
+      <code>
+        /blog/tag/{slug}
+      </code>
+      
+       (<code>
+        blog.tag
+      </code>
+      
+      )
+    </td>
+    
+    <td>
+      <code>
+        /de/blog/tag/{slug}
+      </code>
+      
+       (<code>
+        blog.de.tag
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Feed
+    </td>
+    
+    <td>
+      <code>
+        /blog/feed
+      </code>
+      
+       (<code>
+        blog.feed
+      </code>
+      
+      )
+    </td>
+    
+    <td>
+      <code>
+        /de/blog/feed
+      </code>
+      
+       (<code>
+        blog.de.feed
+      </code>
+      
+      )
+    </td>
+  </tr>
+</tbody>
+</table>
+
+The preview route stays unprefixed. A page only lists posts in its own language, and a post that
+has no version in a language answers 404 at that language's URL. Slugs are unique per language, so a
+German post and its English original can share one.
+
+Ink does not set the application locale for you. If your layout needs it, set it from the route
+(`request()->route()->defaults['locale']`, absent on the default locale's routes).
+
+## Translations
+
+Posts that translate each other share a `translation_group`. Link them in the panel with the
+"Translation of" field, or over MCP with `translation_of` (the id of the post being translated).
+A group holds at most one post per language.
+
+```php
+$post->translations();   // published versions in other languages
+$post->siblings();       // query builder: same group, any status
+$post->alternateUrls();  // ['en' => ..., 'de' => ..., 'x-default' => ...]
+$post->getUrl();         // the URL in the post's own language
+Post::query()->inLocale('de');
+```
+
+A published post with at least one published translation emits `hreflang` alternates (through
+`seo()->for($post)` and `<x-ink::meta-tags>`), including `x-default` for the default locale's
+version. The sitemap lists every language's pages with `xhtml:link` alternates. A language's
+sitemap entries appear once it has a published post, and each feed sets `<language>` to its locale.
+
+`<livewire:blog::search />` and related posts stay inside one language. Pass `locale="de"` to the
+search component to override the language it takes from the route.
+
+
+# Listing SEO
+
+> Per-page canonicals, titles, and metadata for listing routes.
+
+The package's listing routes (`/blog`, `/blog/category/{slug}`, `/blog/tag/{slug}`) emit per-page canonical URLs, titles, and metadata via `BlogListingSeo`.
+
+## Behavior
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Route
+    </th>
+    
+    <th>
+      Page 1 canonical
+    </th>
+    
+    <th>
+      Page N canonical
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      <code>
+        /blog
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        /blog
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        /blog?page=N
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        /blog?q=term
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        /blog
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        noindex,follow
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        /blog/category/guides
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        /blog/category/guides
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        /blog/category/guides?page=N
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        /blog/tag/filament
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        /blog/tag/filament
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        /blog/tag/filament?page=N
+      </code>
+    </td>
+  </tr>
+</tbody>
+</table>
+
+Titles include `— Page N` from page 2 onward.
+
+## Headless consumers
+
+If you write your own controllers in headless mode, call the helper directly:
+
+```php
+use Relaticle\Ink\Support\BlogListingSeo;
+
+public function index(Request $request)
+{
+    $page = (int) $request->query('page', 1);
+    seo()->for(BlogListingSeo::forIndex(page: $page, searchQuery: $request->query('q')));
+
+    return view('blog.index', [...]);
+}
+```
+
+Available factories:
+
+- `BlogListingSeo::forIndex(int $page = 1, ?string $searchQuery = null): SEOData`
+- `BlogListingSeo::forCategory(Category $category, int $page = 1): SEOData`
+- `BlogListingSeo::forTag(Tag $tag, int $page = 1): SEOData`
+
+## Pagination
+
+The package ships a numbered, aria-labeled pagination view at `ink::pagination.blog`. Listing pages use it by default. Publish to customize:
+
+```bash
+php artisan vendor:publish --tag=ink-views
+```
+
+
+# MCP Tools
+
+> 14 MCP tools for AI agent blog management.
+
+The package includes 14 Model Context Protocol tools for full blog management via AI agents.
+
+## Post Tools
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Tool
+    </th>
+    
+    <th>
+      Type
+    </th>
+    
+    <th>
+      Ability
+    </th>
+    
+    <th>
+      Description
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      <code>
+        ListPostsTool
+      </code>
+    </td>
+    
+    <td>
+      Read-only
+    </td>
+    
+    <td>
+      <code>
+        posts:read
+      </code>
+    </td>
+    
+    <td>
+      List posts with filters (status, category, search, pagination)
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GetPostTool
+      </code>
+    </td>
+    
+    <td>
+      Read-only
+    </td>
+    
+    <td>
+      <code>
+        posts:read
+      </code>
+    </td>
+    
+    <td>
+      Get post by ID or slug
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        CreatePostTool
+      </code>
+    </td>
+    
+    <td>
+      Write
+    </td>
+    
+    <td>
+      <code>
+        posts:create
+      </code>
+    </td>
+    
+    <td>
+      Create post (markdown content, auto-slug, auto-sanitize, optional <code>
+        featured_image
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        UpdatePostTool
+      </code>
+    </td>
+    
+    <td>
+      Idempotent
+    </td>
+    
+    <td>
+      <code>
+        posts:update
+      </code>
+    </td>
+    
+    <td>
+      Update post fields (partial updates, including <code>
+        featured_image
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        DeletePostTool
+      </code>
+    </td>
+    
+    <td>
+      Write
+    </td>
+    
+    <td>
+      <code>
+        posts:delete
+      </code>
+    </td>
+    
+    <td>
+      Soft delete a post
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        RestorePostTool
+      </code>
+    </td>
+    
+    <td>
+      Write
+    </td>
+    
+    <td>
+      <code>
+        posts:delete
+      </code>
+    </td>
+    
+    <td>
+      Restore a soft-deleted post
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GeneratePreviewUrlTool
+      </code>
+    </td>
+    
+    <td>
+      Read-only
+    </td>
+    
+    <td>
+      <code>
+        posts:read
+      </code>
+    </td>
+    
+    <td>
+      Generate 1-hour signed preview URL
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        UploadImageTool
+      </code>
+    </td>
+    
+    <td>
+      Write
+    </td>
+    
+    <td>
+      <code>
+        posts:create
+      </code>
+    </td>
+    
+    <td>
+      Upload an image (from a URL or base64 data) for use as a featured image or embedded in content
+    </td>
+  </tr>
+</tbody>
+</table>
+
+## Category Tools
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Tool
+    </th>
+    
+    <th>
+      Type
+    </th>
+    
+    <th>
+      Ability
+    </th>
+    
+    <th>
+      Description
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      <code>
+        ListCategoriesTool
+      </code>
+    </td>
+    
+    <td>
+      Read-only
+    </td>
+    
+    <td>
+      <code>
+        categories:read
+      </code>
+    </td>
+    
+    <td>
+      List categories with post count
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GetCategoryTool
+      </code>
+    </td>
+    
+    <td>
+      Read-only
+    </td>
+    
+    <td>
+      <code>
+        categories:read
+      </code>
+    </td>
+    
+    <td>
+      Get category by ID or slug
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        CreateCategoryTool
+      </code>
+    </td>
+    
+    <td>
+      Write
+    </td>
+    
+    <td>
+      <code>
+        categories:create
+      </code>
+    </td>
+    
+    <td>
+      Create category (auto-slug)
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        UpdateCategoryTool
+      </code>
+    </td>
+    
+    <td>
+      Idempotent
+    </td>
+    
+    <td>
+      <code>
+        categories:update
+      </code>
+    </td>
+    
+    <td>
+      Update category name
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        DeleteCategoryTool
+      </code>
+    </td>
+    
+    <td>
+      Write
+    </td>
+    
+    <td>
+      <code>
+        categories:delete
+      </code>
+    </td>
+    
+    <td>
+      Soft delete a category
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        RestoreCategoryTool
+      </code>
+    </td>
+    
+    <td>
+      Write
+    </td>
+    
+    <td>
+      <code>
+        categories:delete
+      </code>
+    </td>
+    
+    <td>
+      Restore a soft-deleted category
+    </td>
+  </tr>
+</tbody>
+</table>
+
+## Setup
+
+Install `laravel/mcp` (a suggestion, not a hard requirement), then turn the feature on:
+
+```php [config/ink.php]
+'features' => [
+    'mcp' => true,
+],
+
+'mcp' => [
+    'path' => '/mcp/blog',
+    'guard' => null,                    // null uses the default guard
+    'middleware' => ['auth:sanctum'],
+],
+```
+
+That registers `BlogServer` — all 14 tools — at the configured path. Nothing is exposed
+until you opt in, and enabling the flag without `laravel/mcp` installed simply yields no
+route rather than an error.
+
+Enabling `mcp` also registers the signed `/blog/preview/{post}` route — used by
+`GeneratePreviewUrlTool` and `Post::getUrl()` — even when `features.public_routes` is off,
+so an agent can preview a draft or scheduled post in a browser before the public blog
+launches. The rest of the public routes stay dark.
+
+Prefer to route it yourself? Leave the flag off and register the shipped server:
+
+```php [routes/ai.php]
+use Relaticle\Ink\Mcp\BlogServer;
+
+Mcp::web('/mcp/blog', BlogServer::class)->middleware('auth:sanctum');
+```
+
+## Authorization
+
+Tools authorize through **your application's Gate**. Register a policy for
+`Relaticle\Ink\Models\Post` and `Relaticle\Ink\Models\Category`:
+
+```php
+Gate::policy(Post::class, PostPolicy::class);
+Gate::policy(Category::class, CategoryPolicy::class);
+```
+
+With no policy registered the Gate denies and every tool returns
+`This action is unauthorized.` — the tools fail closed.
+
+Each tool maps to one Gate ability and one Sanctum token ability. The two are separate
+axes: the Gate decides what an **identity** may do, the token ability what a
+**credential** may do, so a token can be scoped more narrowly than the person holding it.
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Tool
+    </th>
+    
+    <th>
+      Gate ability
+    </th>
+    
+    <th>
+      Token ability
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      <code>
+        ListPostsTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        viewAny
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts:read
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GetPostTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        view
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts:read
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GeneratePreviewUrlTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        view
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts:read
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        CreatePostTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        create
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts:create
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        UpdatePostTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        update
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts:update
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        UploadImageTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        create
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts:create
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        DeletePostTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        delete
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts:delete
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        RestorePostTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        restore
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        posts:delete
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        ListCategoriesTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        viewAny
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        categories:read
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GetCategoryTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        view
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        categories:read
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        CreateCategoryTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        create
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        categories:create
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        UpdateCategoryTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        update
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        categories:update
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        DeleteCategoryTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        delete
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        categories:delete
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        RestoreCategoryTool
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        restore
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        categories:delete
+      </code>
+    </td>
+  </tr>
+</tbody>
+</table>
+
+Instance-target tools resolve the record before authorizing, so a denial never doubles as
+an existence check.
+
+### Callers on another guard
+
+If your staff authenticate on a guard other than the default — a separate admin model, for
+instance — point `ink.mcp.guard` at it. `BlogTool` resolves the caller from that guard.
+
+## Author attribution
+
+`CreatePostTool` writes `author_id`, which is `NOT NULL`. By default the caller is used
+when it is already an `ink.author_model` instance. When it is not, supply the mapping in a
+service provider's `boot()`:
+
+```php
+use Relaticle\Ink\Ink;
+
+Ink::resolveAuthorUsing(fn (SystemAdministrator $admin): ?User =>
+    User::firstWhere('email', $admin->email));
+```
+
+Register it in a provider, never in config — a closure in a config file breaks
+`config:cache`. If no author resolves, the tool reports the misconfiguration instead of
+guessing.
+
+## Images
+
+MCP's `tools/call` arguments are plain JSON — there is no binary channel for tool inputs —
+so `UploadImageTool` accepts either a fetchable `url` or base64-encoded `data` (exactly one
+of the two). The image type is detected by sniffing the actual bytes, never trusted from a
+filename or extension; only `jpeg`, `png`, `gif` and `webp` are accepted (no `svg` — it's a
+stored-XSS vector). Size is capped by `ink.uploads.max_bytes` — a HEAD request rejects an
+oversized `url` by its `Content-Length` before the body is downloaded where the server
+advertises one; the body itself is still measured against the cap either way.
+
+<caution>
+
+**SSRF stance (accepted risk):** the `url` fetch is scheme-restricted (`http`/`https` only)
+but has no host allowlist — it can reach any address your app server can reach, including
+internal/private ones (e.g. a cloud metadata endpoint). This is an accepted risk, not an
+oversight: the caller is already an authenticated, admin-scoped identity trusted to publish
+content (`upload-image` shares `create-post-tool`'s `create` Gate ability and `posts:create`
+token ability), not an anonymous or low-privilege one. If your deployment needs a stricter
+boundary — blocking link-local and RFC1918 ranges, for example — enforce it at the network
+layer in front of the app; there is no host-allowlist config in the package itself.
+
+</caution>
+
+```php [config/ink.php]
+'uploads' => [
+    'disk' => 'public',       // matches the Filament featured-image field's disk
+    'directory' => 'ink',     // matches its directory too — panel and MCP uploads share a home
+    'max_bytes' => 3 * 1024 * 1024,
+],
+```
+
+<caution>
+
+**max_bytes and PHP's post_max_size (base64 uploads only):** the base64 `data` path is
+bound by PHP's `post_max_size` — and any webserver/proxy body-size limit — *before Laravel
+ever boots*. base64 inflates the binary size by ~4/3, so an oversized payload is rejected by
+PHP itself: the client gets a raw PHP warning wrapped in an HTTP 200, not a clean JSON-RPC
+error, and no app-level check (this one included) can catch it. The 3MB default (≈4MB
+base64-encoded) stays safely under a common 5-8M `post_max_size` floor; raise both together
+if you need a higher cap, keeping `post_max_size` comfortably above `max_bytes * 4/3`. The
+`url` path has no such ceiling — the image is fetched by this server's own HTTP client, not
+carried in the MCP request body at all — so prefer it for anything larger than a few MB.
+
+</caution>
+
+The tool returns a `path` (pass it as `featured_image` to `create-post-tool` /
+`update-post-tool`), a public `url`, and a ready-to-paste `markdown` snippet for in-content
+images:
+
+```json
+{
+  "path": "ink/01hz...webp",
+  "url": "https://example.test/storage/ink/01hz...webp",
+  "markdown": "![A dashboard screenshot](https://example.test/storage/ink/01hz...webp)"
+}
+```
+
+`featured_image` on `create-post-tool` / `update-post-tool` only accepts a path
+`upload-image` itself produced — it's validated against the uploads disk and directory, so
+an agent can't point it at an arbitrary file. Pass `featured_image: null` on
+`update-post-tool` to clear it. Rendering assumes the public disk with `storage:link` run —
+the six `asset('storage/…')` call sites documented in the README are unchanged by this
+feature. Rendered post images get `loading="lazy"` and `decoding="async"` automatically on
+both render paths (`Post::toHtml()` and `Post::toSafeHtml()`), leaving any attribute the
+author declared by hand alone; there is no automatic resizing or `srcset` generation yet, so an
+oversized source image still costs bandwidth and LCP — keep uploads reasonably sized until a
+resizing pipeline ships.
+
+## Scheduling
+
+A post with `status: "published"` and a future `published_at` is scheduled, not published
+immediately: `Post::published()` is evaluated at query time, so the post appears on the
+public index/show/feed/sitemap the moment the clock passes `published_at`, with no queue or
+command involved. Its signed preview URL (`generate-preview-url-tool`) keeps working right
+up until then.
+
+## Content format
+
+The tools store the **markdown** you send, exactly as the Filament editor does; they do not
+convert it to HTML. Rendering — and therefore HTML sanitisation — happens at read time
+through your application's markdown configuration.
+
+<caution>
+
+Posts created by ink 2.1 and earlier hold rendered HTML. The
+`convert_html_post_content_to_markdown` migration converts them and prints the ids of any
+row it could not convert cleanly, so you can review those by hand.
+
+</caution>
+
+## Extending
+
+Custom blog tools should extend `Relaticle\Ink\Mcp\BlogTool` rather than
+`Laravel\Mcp\Server\Tool`. Its `handle()` is `final` and performs authorization before
+delegating, so a new tool cannot ship without it. Declare `ability()`, `tokenAbility()`,
+`model()` and `run()`; override `resolveRecord()` when the tool operates on one record.
+
+
+# MediaLibrary Integration
+
+> Opt-in featured-image upload via spatie/laravel-medialibrary.
+
+The package ships an **opt-in** integration with [`spatie/laravel-medialibrary`](https://spatie.be/docs/laravel-medialibrary). When enabled, the featured-image upload uses `SpatieMediaLibraryFileUpload` instead of the default `FileUpload`.
+
+<alert type="info">
+
+**MediaLibrary is not a hard dependency.** If you don't install it, the form gracefully falls back to the plain `FileUpload` — no crash. Flipping `features.media_library` without installing MediaLibrary is a no-op.
+
+</alert>
+
+## Enable
+
+1. Install the package:```bash [Terminal]
+composer require spatie/laravel-medialibrary
+php artisan vendor:publish --provider="Spatie\MediaLibrary\MediaLibraryServiceProvider" --tag="medialibrary-migrations"
+php artisan migrate
+```
+2. Flip the flag:```php [config/ink.php]
+'features' => [
+    'media_library' => true,
+],
+```
+3. Use the form as usual — the featured-image field now writes to the MediaLibrary `media` table on a `featured_image` collection.
+
+## Form-side only (for now)
+
+This integration covers the **admin form-component swap only**. The model-side integration (implementing `HasMedia`, registering collections via `registerMediaCollections()`, migrating existing `featured_image` string column data) is intentionally deferred — that requires careful schema-migration design that doesn't fit a feature-flag layer.
+
+If you want the full integration today, override the `Post` model in your app:
+
+```php [app/Models/BlogPost.php]
+namespace App\Models;
+
+use Relaticle\Ink\Models\Post as BasePost;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Collections\MediaCollection;
+
+class BlogPost extends BasePost implements HasMedia
+{
+    use InteractsWithMedia;
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('featured_image')->singleFile();
+    }
+}
+```
+
+Then point the package at your model:
+
+```php [config/ink.php]
+// (post_model is not currently a config key — track this in
+// Phase 3 follow-up; for now the package always uses its own Post)
+```
+
+<alert type="warning">
+
+Swapping the post model isn't a config option in v1.4 — that lands in Phase 3 along with the model-side integration. Watch the [GitHub releases](https://github.com/relaticle/ink/releases) for `v1.5`.
+
+</alert>
+
+## Migrating existing `featured_image` data
+
+When Phase 3 lands, existing posts with a `featured_image` string path will be migrated to MediaLibrary entries via a console command. Until then, two options:
+
+1. **Stay on FileUpload** — leave the flag off. No migration required.
+2. **Manual migration** — write your own script to copy `featured_image` files into MediaLibrary on a `featured_image` collection.
+
+Both Tapix and FilaForms blogs (which this package replaces) use the same string-column approach, so flipping the flag without migration leaves you in a usable state — new posts go to MediaLibrary, old posts keep using the string path. The shipped views render whichever exists.
+
+
+# Schema
+
+> Automatic JSON-LD schema emission for posts and listings.
+
+The package emits JSON-LD schema automatically for blog content. Each schema type can be toggled in `config/ink.php`.
+
+## What's emitted by default
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Schema
+    </th>
+    
+    <th>
+      Where
+    </th>
+    
+    <th>
+      Toggle
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      <code>
+        BlogPosting
+      </code>
+    </td>
+    
+    <td>
+      Post pages
+    </td>
+    
+    <td>
+      Always on (via <code>
+        Post::getDynamicSEOData()
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        BreadcrumbList
+      </code>
+    </td>
+    
+    <td>
+      Post pages
+    </td>
+    
+    <td>
+      Always on
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        FAQPage
+      </code>
+    </td>
+    
+    <td>
+      Post pages with <code>
+        ## FAQ
+      </code>
+      
+       section
+    </td>
+    
+    <td>
+      <code>
+        schema.faq_auto
+      </code>
+      
+       (default <code>
+        true
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        HowTo
+      </code>
+    </td>
+    
+    <td>
+      Post pages with <code>
+        ## Steps
+      </code>
+      
+       section
+    </td>
+    
+    <td>
+      <code>
+        schema.howto_auto
+      </code>
+      
+       (default <code>
+        false
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        Blog
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        /blog
+      </code>
+      
+       index
+    </td>
+    
+    <td>
+      Always when public-routes mode is on
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        CollectionPage
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        /blog
+      </code>
+      
+      , <code>
+        /blog/category/{slug}
+      </code>
+      
+      , <code>
+        /blog/tag/{slug}
+      </code>
+    </td>
+    
+    <td>
+      Always when public-routes mode is on
+    </td>
+  </tr>
+</tbody>
+</table>
+
+## FAQPage conventions
+
+To trigger FAQPage emission, include a `## FAQ` heading followed by `### Question?` and a paragraph answer:
+
+```markdown
+## FAQ
+
+### Does the package auto-emit schema?
+Yes — FAQ schema is on by default.
+
+### Can I turn it off?
+Set `schema.faq_auto` to `false`.
+```
+
+## HowTo conventions
+
+To trigger HowTo emission, opt in via `schema.howto_auto = true` and write a `## Steps` section with `### Step Name` headings:
+
+```markdown
+## Steps
+
+### Install the package
+Run `composer require relaticle/ink`.
+
+### Publish the config
+Run `php artisan vendor:publish --tag=ink-config`.
+```
+
+Each `### heading` becomes a `HowToStep` with auto-incremented `position`.
+
+## Disabling auto-detection
+
+```php
+'schema' => [
+    'faq_auto' => false,
+    'howto_auto' => false,
+],
+```
+
+The `BlogPosting` + `BreadcrumbList` schemas remain on regardless — they're considered baseline for any blog.
+
+## Validate your schema
+
+After publishing, paste a post URL into [Google Rich Results Test](https://search.google.com/test/rich-results) or the [Schema.org Validator](https://validator.schema.org/) to confirm zero errors.
+
+
+# Search
+
+> Portable search across blog posts with a config-driven backend hook.
+
+The package ships a `Post::search($term)` query scope and a `BlogSearch` Livewire component.
+
+## Default behavior
+
+`Post::search($term)` does a `LIKE` search across `title`, `excerpt`, and `content`. Works on every database driver out of the box.
+
+```php
+$posts = Post::query()
+    ->published()
+    ->search($request->query('q', ''))
+    ->latest('published_at')
+    ->paginate(12);
+```
+
+Empty / whitespace-only terms are no-ops — the scope leaves the query unchanged. LIKE wildcards in the term are escaped.
+
+## Override the backend
+
+Set `search.callback` in `config/ink.php` to use Postgres FTS, MySQL FULLTEXT, Scout, Meilisearch, or anything else:
+
+```php
+'search' => [
+    'callback' => function (\Illuminate\Database\Eloquent\Builder $query, string $term): void {
+        $query->whereRaw(
+            "to_tsvector('english', title || ' ' || excerpt || ' ' || content) @@ plainto_tsquery('english', ?)",
+            [$term]
+        );
+    },
+],
+```
+
+Whatever the callback applies becomes the search strategy. Empty terms still short-circuit before the callback fires.
+
+## Livewire component
+
+Use `<livewire:blog::search />` anywhere. It reads `?q=` from the URL, debounces 400ms, and renders up to 20 matches with an empty state.
+
+To restyle, publish the view:
+
+```bash
+php artisan vendor:publish --tag=ink-views
+```
+
+Then edit `resources/views/vendor/ink/livewire/blog-search.blade.php`.
+
+## SEO
+
+When the shipped `/blog` route handles `?q=`, the package emits `<meta name="robots" content="noindex,follow">` on the search result page. Search queries should not be indexed as separate URLs.
+
+
 # Tags Taxonomy
+
+> Opt-in many-to-many tags taxonomy with admin UI and public archive.
 
 Tags are an **opt-in** feature — the schema ships with every install but the admin UI, form field, and public archive only appear when `features.tags` is on.
 
@@ -1389,10 +2620,10 @@ Tags are an **opt-in** feature — the schema ships with every install but the a
 
 That single flag activates:
 
-- **`TagResource`** in the Filament admin (Blog group, after Categories)
+- **TagResource** in the Filament admin (Blog group, after Categories)
 - **Multi-select tags field** on the Post create/edit form (with inline create)
 - **Public archive route** at `/blog/tag/{slug}` (when `public_routes` is also on)
-- **`Post::tags()`** relation always exists; without the flag the table is just empty
+- **Post::tags()** relation always exists; without the flag the table is just empty
 
 ## Schema
 
@@ -1488,381 +2719,1120 @@ public function relatedPosts(int $limit = 3): Builder
 ```
 
 
-# MediaLibrary Integration
+# Frontend Setup (headless)
 
-The package ships an **opt-in** integration with [`spatie/laravel-medialibrary`](https://spatie.be/docs/laravel-medialibrary){rel="&#x22;nofollow&#x22;"}. When enabled, the featured-image upload uses `SpatieMediaLibraryFileUpload` instead of the default `FileUpload`.
+> Build your own blog frontend using the package's Blade components.
 
-::alert{type="info"}
-**MediaLibrary is not a hard dependency.**
+<alert type="info">
 
- If you don't install it, the form gracefully falls back to the plain 
+**Want a working blog without writing controllers?** See [Public-routes mode](https://relaticle.github.io/getting-started/public-routes-mode) — flip a config flag and you're done. This page covers the **headless mode** for hosts who want full control.
 
-`FileUpload`
+</alert>
 
- — no crash. Flipping 
+In headless mode the package ships **no routes, no controllers, no page views**. You wire your own routing and use the provided Blade components.
 
-`features.media_library`
+## Create routes
 
- without installing MediaLibrary is a no-op.
-::
+```php [routes/web.php]
+use App\Http\Controllers\BlogController;
 
-## Enable
+Route::prefix('ink')->name('blog.')->group(function () {
+    Route::get('/', [BlogController::class, 'index'])->name('index');
+    Route::get('/feed', [BlogController::class, 'feed'])->name('feed');
+    Route::get('/category/{slug}', [BlogController::class, 'category'])->name('category');
+    Route::get('/tag/{slug}', [BlogController::class, 'tag'])->name('tag');
+    Route::get('/preview/{post}', [BlogController::class, 'preview'])
+        ->name('preview')->middleware('signed');
+    Route::get('/{slug}', [BlogController::class, 'show'])->name('show');
+});
+```
 
-1. Install the package:
-   ```bash \[Terminal]
-   composer require spatie/laravel-medialibrary
-   php artisan vendor:publish --provider="Spatie\MediaLibrary\MediaLibraryServiceProvider" --tag="medialibrary-migrations"
-   php artisan migrate
-   ```
-2. Flip the flag:
-   ```php \[config/ink.php]
-   'features' => [
-       'media_library' => true,
-   ],
-   ```
-3. Use the form as usual — the featured-image field now writes to the MediaLibrary `media` table on a `featured_image` collection.
+The route names matter — the package's URL helpers and SEO components check for them via `Route::has(...)` and fall back gracefully when missing.
 
-## Form-side only (for now)
+## Create controller
 
-This integration covers the **admin form-component swap only**. The model-side integration (implementing `HasMedia`, registering collections via `registerMediaCollections()`, migrating existing `featured_image` string column data) is intentionally deferred — that requires careful schema-migration design that doesn't fit a feature-flag layer.
+```php [app/Http/Controllers/BlogController.php]
+use Relaticle\Ink\Models\Category;
+use Relaticle\Ink\Models\Post;
+use Relaticle\Ink\Models\Tag;
 
-If you want the full integration today, override the `Post` model in your app:
-
-```php [app/Models/BlogPost.php]
-namespace App\Models;
-
-use Relaticle\Ink\Models\Post as BasePost;
-use Spatie\MediaLibrary\HasMedia;
-use Spatie\MediaLibrary\InteractsWithMedia;
-use Spatie\MediaLibrary\MediaCollections\Models\Collections\MediaCollection;
-
-class BlogPost extends BasePost implements HasMedia
+final readonly class BlogController
 {
-    use InteractsWithMedia;
-
-    public function registerMediaCollections(): void
+    public function index(): View
     {
-        $this->addMediaCollection('featured_image')->singleFile();
+        $posts = Post::query()
+            ->published()
+            ->with(['category', 'author', 'seo'])
+            ->latest('published_at')
+            ->paginate(config('ink.per_page', 12));
+
+        return view('blog.index', compact('posts'));
+    }
+
+    public function show(string $slug): View
+    {
+        $post = Post::query()
+            ->published()
+            ->with(['category', 'author', 'seo'])
+            ->where('slug', $slug)
+            ->firstOrFail();
+
+        $relatedPosts = $post->relatedPosts()->get();
+
+        return view('blog.show', compact('post', 'relatedPosts'));
+    }
+
+    public function category(string $slug): View
+    {
+        $category = Category::where('slug', $slug)->firstOrFail();
+        $posts = Post::query()
+            ->where('category_id', $category->id)
+            ->published()
+            ->with(['category', 'author', 'seo'])
+            ->latest('published_at')
+            ->paginate(config('ink.per_page', 12));
+
+        return view('blog.category', compact('category', 'posts'));
+    }
+
+    public function tag(string $slug): View
+    {
+        $tag = Tag::where('slug', $slug)->firstOrFail();
+        $posts = Post::query()
+            ->whereHas('tags', fn ($q) => $q->where('blog_tags.id', $tag->id))
+            ->published()
+            ->with(['category', 'author', 'seo'])
+            ->latest('published_at')
+            ->paginate(config('ink.per_page', 12));
+
+        return view('blog.tag', compact('tag', 'posts'));
+    }
+
+    public function preview(Post $post): View
+    {
+        return view('blog.preview', ['post' => $post->loadMissing(['category', 'author', 'seo'])]);
+    }
+
+    public function feed(): Response
+    {
+        $posts = Post::query()
+            ->published()
+            ->with(['category', 'author'])
+            ->latest('published_at')
+            ->limit(20)
+            ->get();
+
+        return response()
+            ->view('blog.feed', compact('posts'))
+            ->header('Content-Type', 'application/rss+xml; charset=UTF-8');
     }
 }
 ```
 
-Then point the package at your model:
+## Create views
 
-```php [config/ink.php]
-// (post_model is not currently a config key — track this in
-// Phase 3 follow-up; for now the package always uses its own Post)
+Use the package's Blade components inside your own page templates:
+
+```blade [resources/views/blog/show.blade.php]
+<x-your-layout>
+    @push('head')
+        <x-ink::meta-tags :post="$post" />
+        <x-ink::feed-link />
+    @endpush
+
+    <x-ink::structured-data :post="$post" />
+
+    <x-ink::post-header :post="$post" />
+    <x-ink::post-body :post="$post" />
+    <x-ink::related-posts :posts="$relatedPosts" />
+</x-your-layout>
 ```
 
-::alert{type="warning"}
-Swapping the post model isn't a config option in v1.4 — that lands in Phase 3 along with the model-side integration. Watch the 
+```blade [resources/views/blog/index.blade.php]
+<x-your-layout>
+    @foreach($posts as $post)
+        <x-ink::post-card :post="$post" />
+    @endforeach
 
-[GitHub releases](https://github.com/relaticle/ink/releases){rel=""nofollow""}
+    {{ $posts->links() }}
+</x-your-layout>
+```
 
- for 
+```blade [resources/views/blog/feed.blade.php]
+<x-ink::feed :posts="$posts" />
+```
 
-`v1.5`
+## Helpers on the Post model
 
-.
-::
-
-## Migrating existing `featured_image` data
-
-When Phase 3 lands, existing posts with a `featured_image` string path will be migrated to MediaLibrary entries via a console command. Until then, two options:
-
-1. **Stay on `FileUpload`** — leave the flag off. No migration required.
-2. **Manual migration** — write your own script to copy `featured_image` files into MediaLibrary on a `featured_image` collection.
-
-Both Tapix and FilaForms blogs (which this package replaces) use the same string-column approach, so flipping the flag without migration leaves you in a usable state — new posts go to MediaLibrary, old posts keep using the string path. The shipped views render whichever exists.
-
-
-# Search
-
-The package ships a `Post::search($term)` query scope and a `BlogSearch` Livewire component.
-
-## Default behavior
-
-`Post::search($term)` does a `LIKE` search across `title`, `excerpt`, and `content`. Works on every database driver out of the box.
+Useful in your views:
 
 ```php
-$posts = Post::query()
-    ->published()
-    ->search($request->query('q', ''))
-    ->latest('published_at')
-    ->paginate(12);
+$post->readingTime();       // int — minutes
+$post->relatedPosts(3);     // Builder of same-category, published, !=$this->id
+$post->getUrl();            // route('blog.show', $post->slug) if registered, else fallback
+$post->tableOfContents();   // array<string, string> — fragment => heading text, from <h2>
+$post->renderedContent();   // string — rendered through your app's `markdown` config
+$post->toSafeHtml();        // string — rendered with ink's hardened options
 ```
 
-Empty / whitespace-only terms are no-ops — the scope leaves the query unchanged. LIKE wildcards in the term are escaped.
+### The two render paths
 
-## Override the backend
+Both renderers add `loading="lazy" decoding="async"` to every image (leaving an attribute
+the author declared by hand alone), and both take markdown in and give HTML out — but they
+are **not** equivalent, and the choice is a security decision:
 
-Set `search.callback` in `config/ink.php` to use Postgres FTS, MySQL FULLTEXT, Scout, Meilisearch, or anything else:
+<table>
+<thead>
+  <tr>
+    <th>
+      
+    </th>
+    
+    <th>
+      <code>
+        toSafeHtml()
+      </code>
+    </th>
+    
+    <th>
+      <code>
+        toHtml()
+      </code>
+      
+       / <code>
+        renderedContent()
+      </code>
+      
+       / <code>
+        <x-ink::post-body>
+      </code>
+    </th>
+  </tr>
+</thead>
 
-```php
-'search' => [
-    'callback' => function (\Illuminate\Database\Eloquent\Builder $query, string $term): void {
-        $query->whereRaw(
-            "to_tsvector('english', title || ' ' || excerpt || ' ' || content) @@ plainto_tsquery('english', ?)",
-            [$term]
-        );
-    },
-],
+<tbody>
+  <tr>
+    <td>
+      Raw HTML in content
+    </td>
+    
+    <td>
+      stripped
+    </td>
+    
+    <td>
+      governed by your <code>
+        markdown.commonmark_options.html_input
+      </code>
+      
+       (CommonMark defaults to <code>
+        allow
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        javascript:
+      </code>
+      
+       links
+    </td>
+    
+    <td>
+      disarmed
+    </td>
+    
+    <td>
+      governed by <code>
+        allow_unsafe_links
+      </code>
+      
+       (defaults to <code>
+        true
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      GFM tables, strikethrough, task lists, autolinks
+    </td>
+    
+    <td>
+      yes
+    </td>
+    
+    <td>
+      only if you add the extension to <code>
+        markdown.extensions
+      </code>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Heading permalink anchors, code highlighting
+    </td>
+    
+    <td>
+      no
+    </td>
+    
+    <td>
+      per your <code>
+        markdown
+      </code>
+      
+       config
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        tableOfContents()
+      </code>
+      
+       compatible
+    </td>
+    
+    <td>
+      no
+    </td>
+    
+    <td>
+      yes
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Cached
+    </td>
+    
+    <td>
+      no
+    </td>
+    
+    <td>
+      <code>
+        post-rendered:{id}
+      </code>
+      
+      , forever
+    </td>
+  </tr>
+</tbody>
+</table>
+
+`<x-ink::post-body>` and everything else built on `toHtml()` deliberately defer to your
+app's spatie/laravel-markdown configuration — that's the documented extension point, and
+it's what makes anchors, code highlighting and your own CommonMark extensions work. The
+flip side is that it also defers on **sanitisation**: with a stock `config/markdown.php`,
+raw HTML in a post body is rendered, not stripped. If anyone who can author a post is not
+fully trusted, either pin `html_input` and `allow_unsafe_links` in
+`markdown.commonmark_options`, or render with `$post->toSafeHtml()` instead — which is what
+the package's own `ink::pages.show` / `ink::pages.preview` views do.
+
+`tableOfContents(string $tag = 'h2')` parses the **rendered** post (`$post->toHtml()`), not
+the markdown source, so a heading's full text is captured even when it contains inline
+markup (bold, code, links) — `## Using \`artisan` commands`becomes`Using artisan
+commands`, not `Using` — and HTML entities decode exactly once. Each key is the fragment
+used by the heading's permalink anchor; each value is the heading's text:
+
+```blade [resources/views/blog/show.blade.php]
+@if ($toc = $post->tableOfContents())
+    <nav aria-label="Table of contents">
+        <ul>
+            @foreach ($toc as $fragment => $heading)
+                <li><a href="#{{ $fragment }}">{{ $heading }}</a></li>
+            @endforeach
+        </ul>
+    </nav>
+@endif
 ```
 
-Whatever the callback applies becomes the search strategy. Empty terms still short-circuit before the callback fires.
+Pass `tag: 'h3'` (or any heading level your content uses) to build the TOC from a different
+level. A post with no matching headings returns an empty array.
 
-## Livewire component
+## Expected route names
 
-Use `<livewire:blog::search />` anywhere. It reads `?q=` from the URL, debounces 400ms, and renders up to 20 matches with an empty state.
+The package checks for these names when generating URLs. If a route is missing, the helper returns `#`:
 
-To restyle, publish the view:
+<table>
+<thead>
+  <tr>
+    <th>
+      Name
+    </th>
+    
+    <th>
+      Purpose
+    </th>
+  </tr>
+</thead>
 
-```bash
-php artisan vendor:publish --tag=ink-views
-```
+<tbody>
+  <tr>
+    <td>
+      <code>
+        blog.index
+      </code>
+    </td>
+    
+    <td>
+      Listing page
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        blog.show
+      </code>
+    </td>
+    
+    <td>
+      Single post (<code>
+        slug
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        blog.category
+      </code>
+    </td>
+    
+    <td>
+      Category archive (<code>
+        slug
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        blog.tag
+      </code>
+    </td>
+    
+    <td>
+      Tag archive (<code>
+        slug
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        blog.preview
+      </code>
+    </td>
+    
+    <td>
+      Signed draft preview (<code>
+        post
+      </code>
+      
+      )
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        blog.feed
+      </code>
+    </td>
+    
+    <td>
+      RSS feed
+    </td>
+  </tr>
+</tbody>
+</table>
 
-Then edit `resources/views/vendor/ink/livewire/blog-search.blade.php`.
+## Promote to public-routes mode any time
 
-## SEO
-
-When the shipped `/blog` route handles `?q=`, the package emits `<meta name="robots" content="noindex,follow">` on the search result page. Search queries should not be indexed as separate URLs.
-
-
-# Schema
-
-The package emits JSON-LD schema automatically for blog content. Each schema type can be toggled in `config/ink.php`.
-
-## What's emitted by default
-
-| Schema           | Where                                                | Toggle                                      |
-| ---------------- | ---------------------------------------------------- | ------------------------------------------- |
-| `BlogPosting`    | Post pages                                           | Always on (via `Post::getDynamicSEOData()`) |
-| `BreadcrumbList` | Post pages                                           | Always on                                   |
-| `FAQPage`        | Post pages with `## FAQ` section                     | `schema.faq_auto` (default `true`)          |
-| `HowTo`          | Post pages with `## Steps` section                   | `schema.howto_auto` (default `false`)       |
-| `Blog`           | `/blog` index                                        | Always when public-routes mode is on        |
-| `CollectionPage` | `/blog`, `/blog/category/{slug}`, `/blog/tag/{slug}` | Always when public-routes mode is on        |
-
-## FAQPage conventions
-
-To trigger FAQPage emission, include a `## FAQ` heading followed by `### Question?` and a paragraph answer:
-
-```markdown
-## FAQ
-
-### Does the package auto-emit schema?
-Yes — FAQ schema is on by default.
-
-### Can I turn it off?
-Set `schema.faq_auto` to `false`.
-```
-
-## HowTo conventions
-
-To trigger HowTo emission, opt in via `schema.howto_auto = true` and write a `## Steps` section with `### Step Name` headings:
-
-```markdown
-## Steps
-
-### Install the package
-Run `composer require relaticle/ink`.
-
-### Publish the config
-Run `php artisan vendor:publish --tag=ink-config`.
-```
-
-Each `### heading` becomes a `HowToStep` with auto-incremented `position`.
-
-## Disabling auto-detection
-
-```php
-'schema' => [
-    'faq_auto' => false,
-    'howto_auto' => false,
-],
-```
-
-The `BlogPosting` + `BreadcrumbList` schemas remain on regardless — they're considered baseline for any blog.
-
-## Validate your schema
-
-After publishing, paste a post URL into [Google Rich Results Test](https://search.google.com/test/rich-results){rel="&#x22;nofollow&#x22;"} or the [Schema.org Validator](https://validator.schema.org/){rel="&#x22;nofollow&#x22;"} to confirm zero errors.
-
-
-# Listing SEO
-
-The package's listing routes (`/blog`, `/blog/category/{slug}`, `/blog/tag/{slug}`) emit per-page canonical URLs, titles, and metadata via `BlogListingSeo`.
-
-## Behavior
-
-| Route                   | Page 1 canonical        | Page N canonical               |
-| ----------------------- | ----------------------- | ------------------------------ |
-| `/blog`                 | `/blog`                 | `/blog?page=N`                 |
-| `/blog?q=term`          | `/blog`                 | `noindex,follow`               |
-| `/blog/category/guides` | `/blog/category/guides` | `/blog/category/guides?page=N` |
-| `/blog/tag/filament`    | `/blog/tag/filament`    | `/blog/tag/filament?page=N`    |
-
-Titles include `— Page N` from page 2 onward.
-
-## Headless consumers
-
-If you write your own controllers in headless mode, call the helper directly:
-
-```php
-use Relaticle\Ink\Support\BlogListingSeo;
-
-public function index(Request $request)
-{
-    $page = (int) $request->query('page', 1);
-    seo()->for(BlogListingSeo::forIndex(page: $page, searchQuery: $request->query('q')));
-
-    return view('blog.index', [...]);
-}
-```
-
-Available factories:
-
-- `BlogListingSeo::forIndex(int $page = 1, ?string $searchQuery = null): SEOData`
-- `BlogListingSeo::forCategory(Category $category, int $page = 1): SEOData`
-- `BlogListingSeo::forTag(Tag $tag, int $page = 1): SEOData`
-
-## Pagination
-
-The package ships a numbered, aria-labeled pagination view at `ink::pagination.blog`. Listing pages use it by default. Publish to customize:
-
-```bash
-php artisan vendor:publish --tag=ink-views
-```
+If writing all this gets old, flip the flag in config and delete your controller — the package will register equivalent routes automatically. See [Public-routes mode](https://relaticle.github.io/getting-started/public-routes-mode).
 
 
-# Contributing
+# Installation
 
-Contributions are welcome! Here's how to get started:
+> Install Ink in your Laravel application.
 
-1. Fork the repository
-2. Create a feature branch (`feat/my-feature`)
-3. Make your changes
-4. Run tests and static analysis
-5. Submit a pull request
+## Requirements
 
-## Development Setup
+- **PHP:** 8.4+
+- **Laravel:** 12+
+- **Filament:** 5.x
+- **Database:** PostgreSQL, MySQL, SQLite
+
+## Quick Setup
+
+<steps>
+
+### Install Package
 
 ```bash [Terminal]
-git clone git@github.com:relaticle/ink.git
-cd ink
-composer install
+composer require relaticle/ink
 ```
 
-## Code Style
+<alert type="info">
 
-Follow PSR-12 and Laravel conventions. All files must have `declare(strict_types=1)`.
+For private repositories, add the VCS repository to your `composer.json` first:
+
+```json [composer.json]
+"repositories": [
+    {"type": "vcs", "url": "git@github.com:relaticle/ink.git"}
+]
+```
+
+</alert>
+
+### Run Migrations
+
+```bash [Terminal]
+php artisan migrate
+```
+
+This creates `blog_posts`, `blog_categories`, `blog_tags`, and `blog_post_tag` tables. Tag tables are empty unless you enable the `tags` feature.
+
+### Register Filament Plugin
+
+```php [AppPanelProvider.php]
+use Relaticle\Ink\InkPlugin;
+
+$panel->plugins([
+    InkPlugin::make(),
+]);
+```
+
+### Publish Config (optional)
+
+```bash [Terminal]
+php artisan vendor:publish --tag=ink-config
+```
+
+</steps>
+
+**Done!** Visit your Filament panel — you'll see the Blog section with Posts and Categories.
+
+## Pick your install mode
+
+The package ships **two install modes**:
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Mode
+    </th>
+    
+    <th>
+      When to use
+    </th>
+    
+    <th>
+      Doc
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      <strong>
+        Headless (default)
+      </strong>
+    </td>
+    
+    <td>
+      You want the Blade components and admin, but full control over routing/views
+    </td>
+    
+    <td>
+      <a href="https://relaticle.github.io/getting-started/frontend-setup">
+        Frontend Setup (headless)
+      </a>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <strong>
+        Public-routes mode (opt-in)
+      </strong>
+    </td>
+    
+    <td>
+      You want a working blog at <code>
+        /blog
+      </code>
+      
+       without writing a single controller
+    </td>
+    
+    <td>
+      <a href="https://relaticle.github.io/getting-started/public-routes-mode">
+        Public-routes mode
+      </a>
+    </td>
+  </tr>
+</tbody>
+</table>
+
+Most teams porting from the Tapix/FilaForms internal blog packages want public-routes mode — it ships the same flow they had, just behind a flag.
+
+## Default config
+
+After publishing, `config/ink.php` looks like this. Everything is opt-in — defaults match the headless mode, so the package is a no-op until you flip a flag:
+
+```php [config/ink.php]
+return [
+    'prefix' => 'blog',
+    'layout' => 'layouts.app',
+    'author_model' => \App\Models\User::class,
+    'per_page' => 12,
+
+    'features' => [
+        'public_routes' => false,  // /blog, /blog/{slug}, /blog/category/{slug}, signed /blog/preview/{post}
+        'feed'          => false,  // /blog/feed (RSS 2.0)
+        'sitemap'       => false,  // helper for spatie/laravel-sitemap
+        'tags'          => false,  // /blog/tag/{slug}, TagResource admin
+        'media_library' => false,  // SpatieMediaLibraryFileUpload (requires spatie/laravel-medialibrary)
+    ],
+
+    'feed' => [
+        'title' => null,         // falls back to config('app.name')
+        'description' => null,
+        'author_email' => null,  // RSS <author> email
+    ],
+
+    'publisher' => [
+        'name' => null,    // Organization name (JSON-LD)
+        'url' => null,
+        'logo' => null,    // Path to logo (used with asset())
+    ],
+
+    'tables' => [
+        'posts' => 'blog_posts',
+        'categories' => 'blog_categories',
+    ],
+];
+```
+
+See [Configuration](https://relaticle.github.io/essentials/configuration) for the full reference.
+
+## Morph Map
+
+If your app enforces morph maps, register the blog models:
+
+```php [AppServiceProvider.php]
+Relation::enforceMorphMap([
+    // ...existing entries
+    'blog_post' => \Relaticle\Ink\Models\Post::class,
+    'blog_category' => \Relaticle\Ink\Models\Category::class,
+    'blog_tag' => \Relaticle\Ink\Models\Tag::class,
+]);
+```
+
+## SEO Migration
+
+The package depends on `ralphjsmit/laravel-seo`. Publish its migration:
+
+```bash [Terminal]
+php artisan vendor:publish --tag=seo-migrations
+php artisan migrate
+```
+
+## Upgrading from the Tapix/FilaForms internal blog packages
+
+The schema is identical (`blog_posts` and `blog_categories` table names match). To swap:
+
+```bash [Terminal]
+composer remove tapix/blog        # or filaforms/blog
+composer require relaticle/ink
+```
+
+Then enable public-routes mode in config:
+
+```php
+'features' => [
+    'public_routes' => true,
+    'feed' => true,
+],
+```
+
+No data migration needed.
 
 
-# License
+# Public-routes mode
 
-Ink is open-sourced software licensed under the [MIT License](https://opensource.org/licenses/MIT){rel="&#x22;nofollow&#x22;"}.
+> Get a working blog at /blog without writing controllers — opt in via config flags.
+
+The package ships an **opt-in public-routes mode**. Flip a flag in config and you get:
+
+<table>
+<thead>
+  <tr>
+    <th>
+      Route
+    </th>
+    
+    <th>
+      Name
+    </th>
+    
+    <th>
+      Notes
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      <code>
+        GET /blog
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        blog.index
+      </code>
+    </td>
+    
+    <td>
+      Paginated post listing
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GET /blog/{slug}
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        blog.show
+      </code>
+    </td>
+    
+    <td>
+      Single post (only published)
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GET /blog/category/{slug}
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        blog.category
+      </code>
+    </td>
+    
+    <td>
+      Category archive (paginated)
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GET /blog/preview/{post}
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        blog.preview
+      </code>
+    </td>
+    
+    <td>
+      Signed-only draft preview, with <code>
+        noindex,nofollow
+      </code>
+      
+       meta
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GET /blog/feed
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        blog.feed
+      </code>
+    </td>
+    
+    <td>
+      RSS 2.0 feed (route only registered when <code>
+        features.feed
+      </code>
+      
+       is true)
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      <code>
+        GET /blog/tag/{slug}
+      </code>
+    </td>
+    
+    <td>
+      <code>
+        blog.tag
+      </code>
+    </td>
+    
+    <td>
+      Tag archive (gated by <code>
+        features.tags
+      </code>
+      
+      )
+    </td>
+  </tr>
+</tbody>
+</table>
+
+## Enable it
+
+```php [config/ink.php]
+'features' => [
+    'public_routes' => true,
+    'feed'          => true,   // optional, enables /blog/feed
+    'tags'          => true,   // optional, enables /blog/tag/{slug}
+],
+
+'layout' => 'layouts.app',     // your host layout the page views extend
+```
+
+That's it. The service provider registers the routes at boot — no Filament panel boot is required, so the public site keeps working for guests who never touch the admin.
+
+## Required: a host layout
+
+The page views extend the layout you set in `'layout'`. It must define a `@yield('content')` slot. A minimal example:
+
+```blade [resources/views/layouts/app.blade.php]
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ $title ?? config('app.name') }}</title>
+    @stack('head')
+</head>
+<body class="bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+    @yield('content')
+</body>
+</html>
+```
+
+If your layout uses a different slot mechanism (e.g. Blade components with `{{ $slot }}`), point the [`views` config map](https://relaticle.github.io/essentials/host-owned-views) at views of your own — see the next section.
+
+## Customizing pages
+
+Point the `views` config map at views your app already owns, per action:
+
+```php [config/ink.php]
+'views' => [
+    'show' => 'blog.show',
+    'preview' => 'blog.preview',
+],
+```
+
+Any key left `null` keeps rendering the package's own `ink::pages.*` view. See
+[Host-Owned Views](https://relaticle.github.io/essentials/host-owned-views) for the full data each action passes and
+for wiring the preview "edit this post" link.
+
+Publishing (`php artisan vendor:publish --tag=ink-views`) also works — Laravel resolves
+`resources/views/vendor/ink/**` ahead of the package's own views — but a published file is a
+frozen copy that stops receiving upstream fixes. Prefer the `views` map.
+
+## Custom prefix
+
+Change `'prefix' => 'blog'` in config. All routes pick up the new prefix.
+
+## Disabling individual pieces
+
+Each feature flag is independent:
+
+```php
+'features' => [
+    'public_routes' => true,
+    'feed'          => false,   // no RSS feed
+    'tags'          => false,   // no tag archive (admin still works if registered)
+],
+```
+
+When a flag is off, requests to that path return **404**, but not always for the same reason:
+
+- `features.feed` off — the `blog.feed` route is never registered. `Route::has('blog.feed')` returns `false`.
+- `features.tags` off — the `blog.tag` route is still registered (so `route('blog.tag', ...)` keeps resolving without throwing), but `tag()` calls `abort_unless($flag, 404)` at request time. `Route::has('blog.tag')` returns `true`.
+
+The tag route stays registered unconditionally so that `route('blog.tag', ...)` never throws
+a `RouteNotFoundException`, even with the feature off — only the controller enforces the
+flag.
+
+## Mode comparison
+
+<table>
+<thead>
+  <tr>
+    <th>
+      
+    </th>
+    
+    <th>
+      Headless
+    </th>
+    
+    <th>
+      Public-routes
+    </th>
+  </tr>
+</thead>
+
+<tbody>
+  <tr>
+    <td>
+      Routes registered
+    </td>
+    
+    <td>
+      None
+    </td>
+    
+    <td>
+      All 6
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Controllers
+    </td>
+    
+    <td>
+      You write
+    </td>
+    
+    <td>
+      Shipped
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Views
+    </td>
+    
+    <td>
+      Components only
+    </td>
+    
+    <td>
+      Full pages
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Custom domain logic
+    </td>
+    
+    <td>
+      Yes (any)
+    </td>
+    
+    <td>
+      Limited to view overrides
+    </td>
+  </tr>
+  
+  <tr>
+    <td>
+      Effort to ship a blog
+    </td>
+    
+    <td>
+      ~2 hours
+    </td>
+    
+    <td>
+      ~5 minutes
+    </td>
+  </tr>
+</tbody>
+</table>
+
+If you outgrow public-routes mode, flip the flag back to `false` and write your own controllers — see [Frontend Setup (headless)](https://relaticle.github.io/getting-started/frontend-setup).
 
 
-# Ink — Headless blog package for Filament
+<u-page-hero>
+<template v-slot:title="">
 
-::u-page-hero
-#title
 A drop-in blog for Filament
 
-#description
+</template>
+
+<template v-slot:description="">
+
 Ships the admin, SEO components, MCP tools, and Blade components. Bring your own routes for full control — or flip a flag and get `/blog` out of the box.
 
-#links
-  :::u-button
-  ---
-  color: neutral
-  size: xl
-  to: https://relaticle.github.io/ink/getting-started/installation
-  trailing-icon: i-lucide-arrow-right
-  ---
-  Get started
-  :::
+</template>
 
-  :::u-button
-  ---
-  color: neutral
-  icon: simple-icons:github
-  size: xl
-  to: https://github.com/relaticle/ink
-  variant: outline
-  ---
-  Source on GitHub
-  :::
-::
+<template v-slot:links="">
+<u-button color="neutral" size="xl" to="https://relaticle.github.io/getting-started/installation" trailing-icon="i-lucide-arrow-right">
 
-::u-page-section
-#title
+Get started
+
+</u-button>
+
+<u-button color="neutral" size="xl" to="https://github.com/relaticle/ink" icon="simple-icons:github" variant="outline">
+
+Source on GitHub
+
+</u-button>
+</template>
+</u-page-hero>
+
+<u-page-section>
+<template v-slot:title="">
+
 What's included
 
-#features
-  :::u-page-feature
-  ---
-  icon: i-lucide-layout-dashboard
-  ---
-  #title
-  Filament admin
+</template>
 
-  #description
-  Posts, categories, tags. Markdown editor, draft and scheduled UX, SEO fields, bulk publish actions.
-  :::
+<template v-slot:features="">
+<u-page-feature icon="i-lucide-layout-dashboard">
+<template v-slot:title="">
 
-  :::u-page-feature
-  ---
-  icon: i-lucide-search
-  ---
-  #title
-  SEO baked in
+Filament admin
 
-  #description
-  Meta tags, Open Graph, Twitter Cards, JSON-LD `BlogPosting`, RSS feed, and a sitemap helper — all publishable.
-  :::
+</template>
 
-  :::u-page-feature
-  ---
-  icon: i-lucide-bot
-  ---
-  #title
-  MCP tools for AI
+<template v-slot:description="">
 
-  #description
-  14 Model Context Protocol tools so AI agents can write, illustrate, and publish posts. Sanctum-gated and markdown-sanitized.
-  :::
+Posts, categories, tags. Markdown editor, draft and scheduled UX, SEO fields, bulk publish actions.
 
-  :::u-page-feature
-  ---
-  icon: i-lucide-hash
-  ---
-  #title
-  Tags taxonomy
+</template>
+</u-page-feature>
 
-  #description
-  Many-to-many tags with admin UI and a public archive at `/blog/tag/{slug}`. All behind one config flag.
-  :::
+<u-page-feature icon="i-lucide-search">
+<template v-slot:title="">
 
-  :::u-page-feature
-  ---
-  icon: i-lucide-image
-  ---
-  #title
-  MediaLibrary ready
+SEO baked in
 
-  #description
-  Featured-image uploads switch to `SpatieMediaLibraryFileUpload` when you install the package and flip the flag.
-  :::
+</template>
 
-  :::u-page-feature
-  ---
-  icon: i-lucide-paintbrush
-  ---
-  #title
-  Tailwind components
+<template v-slot:description="">
 
-  #description
-  Post card, header, body, related posts, preview banner. Dark mode out of the box. Publish and customize.
-  :::
-::
+Meta tags, Open Graph, Twitter Cards, JSON-LD `BlogPosting`, RSS feed, and a sitemap helper — all publishable.
+
+</template>
+</u-page-feature>
+
+<u-page-feature icon="i-lucide-bot">
+<template v-slot:title="">
+
+MCP tools for AI
+
+</template>
+
+<template v-slot:description="">
+
+14 Model Context Protocol tools so AI agents can write, illustrate, and publish posts. Sanctum-gated and markdown-sanitized.
+
+</template>
+</u-page-feature>
+
+<u-page-feature icon="i-lucide-hash">
+<template v-slot:title="">
+
+Tags taxonomy
+
+</template>
+
+<template v-slot:description="">
+
+Many-to-many tags with admin UI and a public archive at `/blog/tag/{slug}`. All behind one config flag.
+
+</template>
+</u-page-feature>
+
+<u-page-feature icon="i-lucide-image">
+<template v-slot:title="">
+
+MediaLibrary ready
+
+</template>
+
+<template v-slot:description="">
+
+Featured-image uploads switch to `SpatieMediaLibraryFileUpload` when you install the package and flip the flag.
+
+</template>
+</u-page-feature>
+
+<u-page-feature icon="i-lucide-paintbrush">
+<template v-slot:title="">
+
+Tailwind components
+
+</template>
+
+<template v-slot:description="">
+
+Post card, header, body, related posts, preview banner. Dark mode out of the box. Publish and customize.
+
+</template>
+</u-page-feature>
+</template>
+</u-page-section>
+
+## Resources for Agents
+
+- [API catalog: every service document this site publishes](https://relaticle.github.io/.well-known/api-catalog)
+- [Sitemap (XML)](https://relaticle.github.io/sitemap.xml)
+- [Sitemap (Markdown): every page on the site](https://relaticle.github.io/sitemap.md)
+- [MCP server card: MCP endpoint at https://relaticle.github.io/mcp](https://relaticle.github.io/.well-known/mcp/server-card.json)
+- [MCP endpoint (streamable HTTP)](https://relaticle.github.io/mcp)
+- [llms.txt: index of the documentation for LLMs](https://relaticle.github.io/llms.txt)
+- [llms-full.txt: the full documentation as a single file](https://relaticle.github.io/llms-full.txt)
+- [OpenAPI document: every route this site serves to agents](https://relaticle.github.io/openapi.json)

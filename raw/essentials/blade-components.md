@@ -1,3 +1,8 @@
+---
+title: "Blade Components"
+description: "All available Blade components for building your blog frontend."
+canonical_url: "https://relaticle.github.io/essentials/blade-components"
+---
 # Blade Components
 
 > All available Blade components for building your blog frontend.
@@ -111,3 +116,8 @@ The view emits `aria-label="Blog pagination"` on the nav, `aria-current="page"` 
 ## Search (Livewire)
 
 Drop `<livewire:blog::search />` anywhere. It reads `?q=` from the URL, debounces 400ms, and renders up to 20 matching posts. Empty queries show no results until the user types.
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

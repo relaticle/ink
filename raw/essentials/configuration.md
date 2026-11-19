@@ -1,3 +1,8 @@
+---
+title: "Configuration"
+description: "Full configuration reference for Ink."
+canonical_url: "https://relaticle.github.io/essentials/configuration"
+---
 # Configuration
 
 > Full configuration reference for Ink.
@@ -12,7 +17,7 @@ php artisan vendor:publish --tag=ink-config
 
 Once published, new **top-level** keys the package adds in later releases (like `views` and
 `middleware`) merge into your config automatically. New keys added *inside* an existing
-array such as `features` do not — see [the shallow-merge trap](/essentials/host-owned-views#the-shallow-config-merge-trap)
+array such as `features` do not — see [the shallow-merge trap](https://relaticle.github.io/essentials/host-owned-views#the-shallow-config-merge-trap)
 for why, and re-check your published file after every upgrade.
 
 </caution>
@@ -207,7 +212,7 @@ The generator is route-aware — it only adds URLs for routes that exist in your
 
 For the six public-routes pages (`index`, `show`, `category`, `tag`, `preview`, `feed`),
 point the `views` config map at views your app already owns — see
-[Host-Owned Views](/essentials/host-owned-views). It avoids publishing a copy of package
+[Host-Owned Views](https://relaticle.github.io/essentials/host-owned-views). It avoids publishing a copy of package
 markup that stops receiving upstream fixes.
 
 For the Blade components used in headless mode (`post-card`, `post-header`, …), publishing
@@ -231,3 +236,8 @@ php artisan vendor:publish --tag=ink-translations
 ```
 
 (No translations ship by default; this tag exists for future localization.)
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

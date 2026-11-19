@@ -1,7 +1,6 @@
-# 
-
-> 
-
+---
+canonical_url: "https://relaticle.github.io"
+---
 <u-page-hero>
 <template v-slot:title="">
 
@@ -16,7 +15,7 @@ Ships the admin, SEO components, MCP tools, and Blade components. Bring your own
 </template>
 
 <template v-slot:links="">
-<u-button color="neutral" size="xl" to="/getting-started/installation" trailing-icon="i-lucide-arrow-right">
+<u-button color="neutral" size="xl" to="https://relaticle.github.io/getting-started/installation" trailing-icon="i-lucide-arrow-right">
 
 Get started
 
@@ -123,3 +122,19 @@ Post card, header, body, related posts, preview banner. Dark mode out of the box
 </u-page-feature>
 </template>
 </u-page-section>
+
+## Resources for Agents
+
+- [API catalog: every service document this site publishes](https://relaticle.github.io/.well-known/api-catalog)
+- [Sitemap (XML)](https://relaticle.github.io/sitemap.xml)
+- [Sitemap (Markdown): every page on the site](https://relaticle.github.io/sitemap.md)
+- [MCP server card: MCP endpoint at https://relaticle.github.io/mcp](https://relaticle.github.io/.well-known/mcp/server-card.json)
+- [MCP endpoint (streamable HTTP)](https://relaticle.github.io/mcp)
+- [llms.txt: index of the documentation for LLMs](https://relaticle.github.io/llms.txt)
+- [llms-full.txt: the full documentation as a single file](https://relaticle.github.io/llms-full.txt)
+- [OpenAPI document: every route this site serves to agents](https://relaticle.github.io/openapi.json)
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

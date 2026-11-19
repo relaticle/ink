@@ -1,3 +1,8 @@
+---
+title: "Host-Owned Views"
+description: "Render ink's controllers through views your app already owns, and control the preview edit link."
+canonical_url: "https://relaticle.github.io/essentials/host-owned-views"
+---
 # Host-Owned Views
 
 > Render ink's controllers through views your app already owns, and control the preview edit link.
@@ -217,7 +222,7 @@ fixes, and nothing will tell you when it's drifted. Pointing `views` at your own
 both problems: you own the markup from the start, and ink's own pages keep improving
 underneath you without needing a merge.
 
-Publishing is still how you customize the [Blade components](/essentials/blade-components)
+Publishing is still how you customize the [Blade components](https://relaticle.github.io/essentials/blade-components)
 (`post-card`, `post-header`, …) — those aren't covered by the `views` map.
 
 </caution>
@@ -289,3 +294,8 @@ After upgrading, diff your published `config/ink.php` against the package's
 new subkeys by hand.
 
 </caution>
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

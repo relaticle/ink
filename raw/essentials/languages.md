@@ -1,3 +1,8 @@
+---
+title: "Languages"
+description: "Publish the same post in several languages with per-language URLs, hreflang and feeds."
+canonical_url: "https://relaticle.github.io/essentials/languages"
+---
 # Languages
 
 > Publish the same post in several languages with per-language URLs, hreflang and feeds.
@@ -212,3 +217,8 @@ sitemap entries appear once it has a published post, and each feed sets `<langua
 
 `<livewire:blog::search />` and related posts stay inside one language. Pass `locale="de"` to the
 search component to override the language it takes from the route.
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

@@ -1,3 +1,8 @@
+---
+title: "MediaLibrary Integration"
+description: "Opt-in featured-image upload via spatie/laravel-medialibrary."
+canonical_url: "https://relaticle.github.io/essentials/media-library"
+---
 # MediaLibrary Integration
 
 > Opt-in featured-image upload via spatie/laravel-medialibrary.
@@ -70,3 +75,8 @@ When Phase 3 lands, existing posts with a `featured_image` string path will be m
 2. **Manual migration** — write your own script to copy `featured_image` files into MediaLibrary on a `featured_image` collection.
 
 Both Tapix and FilaForms blogs (which this package replaces) use the same string-column approach, so flipping the flag without migration leaves you in a usable state — new posts go to MediaLibrary, old posts keep using the string path. The shipped views render whichever exists.
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

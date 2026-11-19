@@ -1,10 +1,15 @@
+---
+title: "Frontend Setup (headless)"
+description: "Build your own blog frontend using the package's Blade components."
+canonical_url: "https://relaticle.github.io/getting-started/frontend-setup"
+---
 # Frontend Setup (headless)
 
 > Build your own blog frontend using the package's Blade components.
 
 <alert type="info">
 
-**Want a working blog without writing controllers?** See [Public-routes mode](/getting-started/public-routes-mode) — flip a config flag and you're done. This page covers the **headless mode** for hosts who want full control.
+**Want a working blog without writing controllers?** See [Public-routes mode](https://relaticle.github.io/getting-started/public-routes-mode) — flip a config flag and you're done. This page covers the **headless mode** for hosts who want full control.
 
 </alert>
 
@@ -450,4 +455,9 @@ The package checks for these names when generating URLs. If a route is missing, 
 
 ## Promote to public-routes mode any time
 
-If writing all this gets old, flip the flag in config and delete your controller — the package will register equivalent routes automatically. See [Public-routes mode](/getting-started/public-routes-mode).
+If writing all this gets old, flip the flag in config and delete your controller — the package will register equivalent routes automatically. See [Public-routes mode](https://relaticle.github.io/getting-started/public-routes-mode).
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

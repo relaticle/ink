@@ -1,3 +1,8 @@
+---
+title: "MCP Tools"
+description: "14 MCP tools for AI agent blog management."
+canonical_url: "https://relaticle.github.io/essentials/mcp-tools"
+---
 # MCP Tools
 
 > 14 MCP tools for AI agent blog management.
@@ -843,3 +848,8 @@ Custom blog tools should extend `Relaticle\Ink\Mcp\BlogTool` rather than
 `Laravel\Mcp\Server\Tool`. Its `handle()` is `final` and performs authorization before
 delegating, so a new tool cannot ship without it. Declare `ability()`, `tokenAbility()`,
 `model()` and `run()`; override `resolveRecord()` when the tool operates on one record.
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

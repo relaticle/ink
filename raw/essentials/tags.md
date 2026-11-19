@@ -1,3 +1,8 @@
+---
+title: "Tags Taxonomy"
+description: "Opt-in many-to-many tags taxonomy with admin UI and public archive."
+canonical_url: "https://relaticle.github.io/essentials/tags"
+---
 # Tags Taxonomy
 
 > Opt-in many-to-many tags taxonomy with admin UI and public archive.
@@ -111,3 +116,8 @@ public function relatedPosts(int $limit = 3): Builder
         ->limit($limit);
 }
 ```
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

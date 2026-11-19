@@ -1,3 +1,8 @@
+---
+title: "Contributing"
+description: "How to contribute to Ink."
+canonical_url: "https://relaticle.github.io/community/contributing"
+---
 # Contributing
 
 > How to contribute to Ink.
@@ -21,3 +26,8 @@ composer install
 ## Code Style
 
 Follow PSR-12 and Laravel conventions. All files must have `declare(strict_types=1)`.
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.

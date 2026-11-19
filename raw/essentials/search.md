@@ -1,3 +1,8 @@
+---
+title: "Search"
+description: "Portable search across blog posts with a config-driven backend hook."
+canonical_url: "https://relaticle.github.io/essentials/search"
+---
 # Search
 
 > Portable search across blog posts with a config-driven backend hook.
@@ -50,3 +55,8 @@ Then edit `resources/views/vendor/ink/livewire/blog-search.blade.php`.
 ## SEO
 
 When the shipped `/blog` route handles `?q=`, the package emits `<meta name="robots" content="noindex,follow">` on the search result page. Search queries should not be indexed as separate URLs.
+
+
+## Sitemap
+
+See the full [sitemap](https://relaticle.github.io/sitemap.md) for all pages.
