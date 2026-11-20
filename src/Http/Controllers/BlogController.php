@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Relaticle\Ink\Http\Controllers;
 
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -16,7 +17,7 @@ use Relaticle\Ink\Support\BlogListingSeo;
 
 class BlogController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
         $perPage = (int) config('ink.per_page', 12);
 
@@ -39,14 +40,12 @@ class BlogController extends Controller
             ->withQueryString();
 
         seo()->for(BlogListingSeo::forIndex(
-            page: (int) $request->query('page', 1),
+            page: $posts->currentPage(),
             searchQuery: $request->query('q'),
             locale: $locale,
         ));
 
-        return view($this->viewFor('index'), [
-            'posts' => $posts,
-        ]);
+        return $this->archive('index', $posts);
     }
 
     public function show(string $slug): View
@@ -68,7 +67,7 @@ class BlogController extends Controller
         ]);
     }
 
-    public function category(string $slug): View
+    public function category(string $slug): Response
     {
         $category = Category::where('slug', $slug)->firstOrFail();
         $perPage = (int) config('ink.per_page', 12);
@@ -84,14 +83,11 @@ class BlogController extends Controller
 
         seo()->for(BlogListingSeo::forCategory(
             category: $category,
-            page: (int) request()->query('page', 1),
+            page: $posts->currentPage(),
             locale: $locale,
         ));
 
-        return view($this->viewFor('category'), [
-            'category' => $category,
-            'posts' => $posts,
-        ]);
+        return $this->archive('category', $posts, ['category' => $category]);
     }
 
     public function preview(Post $post): View
@@ -109,7 +105,7 @@ class BlogController extends Controller
         ]);
     }
 
-    public function tag(string $slug): View
+    public function tag(string $slug): Response
     {
         abort_unless(config('ink.features.tags', false), 404);
 
@@ -127,14 +123,11 @@ class BlogController extends Controller
 
         seo()->for(BlogListingSeo::forTag(
             tag: $tag,
-            page: (int) request()->query('page', 1),
+            page: $posts->currentPage(),
             locale: $locale,
         ));
 
-        return view($this->viewFor('tag'), [
-            'tag' => $tag,
-            'posts' => $posts,
-        ]);
+        return $this->archive('tag', $posts, ['tag' => $tag]);
     }
 
     public function feed(): Response
@@ -152,6 +145,13 @@ class BlogController extends Controller
         return response()
             ->view($this->viewFor('feed'), ['posts' => $posts, 'locale' => $locale])
             ->header('Content-Type', 'application/rss+xml; charset=UTF-8');
+    }
+
+    private function archive(string $key, LengthAwarePaginator $posts, array $data = []): Response
+    {
+        $status = $posts->currentPage() > $posts->lastPage() ? Response::HTTP_NOT_FOUND : Response::HTTP_OK;
+
+        return response()->view($this->viewFor($key), ['posts' => $posts, ...$data], $status);
     }
 
     private function viewFor(string $key): string
