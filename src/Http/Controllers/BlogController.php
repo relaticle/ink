@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Relaticle\Ink\Http\Controllers;
 
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -39,14 +40,12 @@ class BlogController extends Controller
             ->withQueryString();
 
         seo()->for(BlogListingSeo::forIndex(
-            page: (int) $request->query('page', 1),
+            page: $posts->currentPage(),
             searchQuery: $request->query('q'),
             locale: $locale,
         ));
 
-        return view($this->viewFor('index'), [
-            'posts' => $posts,
-        ]);
+        return $this->archive('index', $posts);
     }
 
     public function show(string $slug): View
@@ -84,14 +83,11 @@ class BlogController extends Controller
 
         seo()->for(BlogListingSeo::forCategory(
             category: $category,
-            page: (int) request()->query('page', 1),
+            page: $posts->currentPage(),
             locale: $locale,
         ));
 
-        return view($this->viewFor('category'), [
-            'category' => $category,
-            'posts' => $posts,
-        ]);
+        return $this->archive('category', $posts, ['category' => $category]);
     }
 
     public function preview(Post $post): View
@@ -127,14 +123,11 @@ class BlogController extends Controller
 
         seo()->for(BlogListingSeo::forTag(
             tag: $tag,
-            page: (int) request()->query('page', 1),
+            page: $posts->currentPage(),
             locale: $locale,
         ));
 
-        return view($this->viewFor('tag'), [
-            'tag' => $tag,
-            'posts' => $posts,
-        ]);
+        return $this->archive('tag', $posts, ['tag' => $tag]);
     }
 
     public function feed(): Response
@@ -152,6 +145,17 @@ class BlogController extends Controller
         return response()
             ->view($this->viewFor('feed'), ['posts' => $posts, 'locale' => $locale])
             ->header('Content-Type', 'application/rss+xml; charset=UTF-8');
+    }
+
+    private function archive(string $key, LengthAwarePaginator $posts, array $data = []): View
+    {
+        $view = view($this->viewFor($key), ['posts' => $posts, ...$data]);
+
+        if ($posts->currentPage() > $posts->lastPage()) {
+            abort(response($view, Response::HTTP_NOT_FOUND));
+        }
+
+        return $view;
     }
 
     private function viewFor(string $key): string
