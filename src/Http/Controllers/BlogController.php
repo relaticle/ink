@@ -17,7 +17,7 @@ use Relaticle\Ink\Support\BlogListingSeo;
 
 class BlogController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): View
     {
         $perPage = (int) config('ink.per_page', 12);
 
@@ -67,7 +67,7 @@ class BlogController extends Controller
         ]);
     }
 
-    public function category(string $slug): Response
+    public function category(string $slug): View
     {
         $category = Category::where('slug', $slug)->firstOrFail();
         $perPage = (int) config('ink.per_page', 12);
@@ -105,7 +105,7 @@ class BlogController extends Controller
         ]);
     }
 
-    public function tag(string $slug): Response
+    public function tag(string $slug): View
     {
         abort_unless(config('ink.features.tags', false), 404);
 
@@ -147,11 +147,15 @@ class BlogController extends Controller
             ->header('Content-Type', 'application/rss+xml; charset=UTF-8');
     }
 
-    private function archive(string $key, LengthAwarePaginator $posts, array $data = []): Response
+    private function archive(string $key, LengthAwarePaginator $posts, array $data = []): View
     {
-        $status = $posts->currentPage() > $posts->lastPage() ? Response::HTTP_NOT_FOUND : Response::HTTP_OK;
+        $view = view($this->viewFor($key), ['posts' => $posts, ...$data]);
 
-        return response()->view($this->viewFor($key), ['posts' => $posts, ...$data], $status);
+        if ($posts->currentPage() > $posts->lastPage()) {
+            abort(response($view, Response::HTTP_NOT_FOUND));
+        }
+
+        return $view;
     }
 
     private function viewFor(string $key): string
